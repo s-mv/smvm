@@ -11,6 +11,8 @@ int main() {
   };
 
   smvm_load_inst(&vm, inst, 4);
+  smvm_execute(&vm);
+  smvm_free(&vm);
 
   return 0;
 }

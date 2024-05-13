@@ -12,8 +12,8 @@
 // I am generally very paranoid of stuff like this but for once in
 // my life I won't worry about it and just use fixed size registers
 typedef uint64_t smvm_size;
-typedef uint8_t smvm_byte;
 typedef uint16_t smvm_word;
+typedef uint8_t u8;
 
 /* util */
 
@@ -108,14 +108,22 @@ typedef struct smvm_inst {
 
 void smvm_init(smvm *vm);
 void smvm_load_inst(smvm *vm, smvm_inst *inst, long num);
-// void smvm_load_bytecode(smvm *vm, smvm_byte *code, long num); // TODO
+// void smvm_load_bytecode(smvm *vm, u8 *code, long num); // TODO
 void smvm_execute(smvm *vm);
 void smvm_free(smvm *vm);
+
+/* vm - inline helpers */
+
+static void smvm_ip_inc(smvm *vm) { vm->registers[reg_ip]++; }
+
+static u8 *smvm_fetch_inst_addr(smvm *vm) {
+  return listmv_at(&vm->bytecode, vm->registers[reg_ip]);
+}
 
 /* vm - implementation */
 
 void smvm_init(smvm *vm) {
-  listmv_init(&vm->bytecode, sizeof(smvm_byte));
+  listmv_init(&vm->bytecode, sizeof(u8));
   listmv_init(&vm->memory, sizeof(smvm_size));
   // TODO, see if this can become 53-bit somehow
   listmv_init(&vm->allocation, sizeof(smvm_size));
@@ -126,13 +134,13 @@ void smvm_init(smvm *vm) {
 void smvm_load_inst(smvm *vm, smvm_inst *inst, long num) {
   for (size_t i = 0; i < num; i++) {
     smvm_inst c = inst[i];
-    smvm_byte operand = (c.code << 2) | c.mode;
+    u8 operand = (c.code << 2) | c.mode;
 
     // refer to [docs/BYTECODE.md]
     switch (c.mode) {
       case mode_indirect:
       case mode_register: {
-        smvm_byte inst[2] = {
+        u8 inst[2] = {
             operand,
             (c.x << 3) | c.y,
         };
@@ -142,7 +150,7 @@ void smvm_load_inst(smvm *vm, smvm_inst *inst, long num) {
 
       case mode_immediate: {
         smvm_size addr = vm->allocation.len;
-        smvm_byte long_inst[8] = {
+        u8 long_inst[8] = {
             operand,
             // first 5 bits of c.y (bit 53-48)
             (c.x << 5 | (c.y >> 48) & 0x5),
@@ -183,7 +191,54 @@ void smvm_execute(smvm *vm) {
   // TODO this
   // 0 = MSB
   while (true) {
-    // smvm_byte byte0 =
+    printf("ip -> %d : ", vm->registers[reg_ip]);
+    u8 byte0 = *smvm_fetch_inst_addr(vm);
+    u8 opcode = byte0 >> 2;  // higher 6 bits
+    u8 mode = byte0 & 0x3;   // lower 2 bits
+    print_memory(&opcode, 1);
+    switch (opcode) {
+      case op_halt:
+        return;  // TODO, so much (sighs)
+        break;
+
+      case op_mov: {
+        switch (mode) {
+          case mode_register:
+            smvm_ip_inc(vm);
+            break;  // TODO
+
+          case mode_indirect:
+            break;  // TODO
+
+          case mode_immediate: {
+            smvm_ip_inc(vm);
+
+            u8 byte1 = *smvm_fetch_inst_addr(vm);
+            u8 x = byte1 >> 5;                       // higher 3 bits
+            smvm_size y = ((u8)(byte1 & 0x11111) << 48);  // lower 5 bits
+            // unpack the next 6 bytes
+            y |= *(smvm_size *)smvm_fetch_inst_addr(vm) >> 16;
+            printf("%d", y);
+            smvm_size data = *(smvm_size *)listmv_at(&vm->memory, y);
+
+            // finally move the data
+            vm->registers[x] = data;
+          } break;  // TODO
+
+          case mode_direct:
+            break;  // TODO
+
+          default:
+            break;
+        }
+        break;
+      }
+
+      default:
+        break;
+    }
+    vm->registers[reg_ip]++;
+    if (vm->registers[reg_ip] > 19) break;
   }
 }
 
