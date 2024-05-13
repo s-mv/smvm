@@ -18,7 +18,7 @@ typedef uint16_t smvm_word;
 /* util */
 
 typedef struct listmv {
-  void **data;
+  void *data;
   smvm_size len;
   smvm_size cap;
   long size;
@@ -28,6 +28,13 @@ void listmv_init(listmv *ls, long size);
 void listmv_push(listmv *ls, void *data);
 void *listmv_at(listmv *ls, smvm_size index);
 void listmv_free(listmv *ls);
+
+// temp helper
+void print_memory(void *arr, int num) {
+  unsigned char *p = (unsigned char *)arr;
+  for (size_t i = 0; i < num; i++) printf("%02x ", p[i]);
+  printf("\n");
+}
 
 /* vm */
 
@@ -65,6 +72,14 @@ typedef enum smvm_opcode {
   op_print_str = 0b100010,  // prints till it encounters 0x0000
 } smvm_opcode;
 
+typedef enum smvm_reg_operand {
+  reg_a = 0b000,
+  reg_b = 0b001,
+  reg_c = 0b010,
+  reg_d = 0b011,
+  reg_ip = 0b100,
+} smvm_reg_operand;
+
 typedef enum smvm_inst_mode {
   // mode takes 2 bits
   mode_register = 0b00,   // r
@@ -76,14 +91,7 @@ typedef enum smvm_inst_mode {
   // simply run without checking the "mode" first, unlike other instructions
 } smvm_inst_mode;
 
-typedef enum smvm_reg_operand {
-  reg_a = 0b000,
-  reg_b = 0b001,
-  reg_c = 0b010,
-  reg_d = 0b011,
-  reg_ip = 0b100,
-} smvm_reg_operand;
-
+/* this is the struct a user should be conerned with */
 typedef struct smvm_inst {
   smvm_opcode code;
   smvm_inst_mode mode;
@@ -114,14 +122,14 @@ void smvm_init(smvm *vm) {
 void smvm_load_inst(smvm *vm, smvm_inst *inst, long num) {
   for (size_t i = 0; i < num; i++) {
     smvm_inst c = inst[i];
-    smvm_byte operand = c.code << 2 | c.mode;
+    smvm_byte operand = c.code;
 
     // refer to [docs/BYTECODE.md]
     switch (c.mode) {
       case mode_indirect:
       case mode_register: {
-        smvm_word short_inst;
-        short_inst = operand << 6 | c.x << 3 | c.y;
+        smvm_word short_inst = (operand << 6) | c.x << 3 | c.y;
+        print_memory(&short_inst, 1);
         listmv_push(&vm->bytecode, &short_inst);
         break;
       }
@@ -129,20 +137,11 @@ void smvm_load_inst(smvm *vm, smvm_inst *inst, long num) {
       // TODO fix bit shifting (>> 32, << 32 is off)
       case mode_immediate: {
         smvm_size addr = vm->allocation.len;
-        smvm_size inst = (smvm_size)operand << 56 | (smvm_size)c.x << 53 | addr;
-        smvm_word upper = (inst & 0xff00) >> 32;
-        smvm_word lower = (inst & 0x00ff) >> 32;
-        listmv_push(&vm->bytecode, &upper);
-        listmv_push(&vm->bytecode, &lower);
         listmv_push(&vm->allocation, &c.y);
         break;
       }
       case mode_direct: {
         smvm_size inst = (smvm_size)operand << 56 | (smvm_size)c.x << 53 | c.y;
-        smvm_word upper = (inst & 0xff00) >> 32;
-        smvm_word lower = (inst & 0x00ff) >> 32;
-        listmv_push(&vm->bytecode, &upper);
-        listmv_push(&vm->bytecode, &lower);
         break;
       }
 
@@ -188,8 +187,7 @@ void listmv_init(listmv *ls, long size) {
 
 void listmv_push(listmv *ls, void *data) {
   if (ls->len >= ls->cap) {
-    ls->data = (void **)realloc(ls->data,
-                                (size_t)ls->cap * ls->size * sizeof(char) * 2);
+    ls->data = realloc(ls->data, (size_t)ls->cap * ls->size * sizeof(char) * 2);
     ls->cap *= 2;
   }
 
