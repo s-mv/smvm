@@ -10,23 +10,27 @@ very different outputs than expected.
 
 # Register/Indirect addressing mode:
 ```
-+------+--+---+---+--+
-|     0| 1|  2|  3|  |
-+------+--+---+---+--+
+<--6--><2>     <3><3->
++-----+--+  +-+--+---+
+|00000011|  |xx222333|
++-----+--+  +-+--+---+
 ```
 0 - op code
 1 - mode of operation (00 or 10)
 2 - register
 3 - register
 
-In a 64 bit queue 4 such operations can be stored.
-
-
 # Immediate/Direct addressing mode:
 ```
-+------+--+---+---xxxxxx+
-|     0| 1|  2|        3|
-+------+--+---+---xxxxxx+   (x = 8 bit)
+<--6--><2>  <3-><-5-->  <---8---->  <---8---->
++-----+--+  +--+-----+  +--------+  +--------+
+|00000011|  |22233333|  |33333333|  |33333333|
++-----+--+  +--+-----+  +--------+  +--------+
+
+<---8---->  <---8---->  <---8---->  <---8---->
++--------+  +--------+  +--------+  +--------+
+|33333333|  |33333333|  |33333333|  |33333333|
++--------+  +--------+  +--------+  +--------+
 ```
 0. op code
 1. mode of operation (10 or 11)
@@ -35,14 +39,14 @@ In a 64 bit queue 4 such operations can be stored.
 
 # Implicit mode instructions:
 ```
-+------+--+x+
-|     0|  | |
-+------+--+x+               (x = 8 bit)
++-----+--+
+|000000xx|
++-----+--+
 ```
-It pains me to make implicit instructions 16-bit when they could've been 6 (i.e. 8 with padding) bit instructions.
 
 0. op code
 
 There is no need for mode here since the op code is enough.
 
 # Endianness
+TODO, lots to say here.

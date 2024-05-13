@@ -26,13 +26,20 @@ typedef struct listmv {
 
 void listmv_init(listmv *ls, long size);
 void listmv_push(listmv *ls, void *data);
+void listmv_push_array(listmv *ls, void *data, size_t num);
 void *listmv_at(listmv *ls, smvm_size index);
 void listmv_free(listmv *ls);
 
 // temp helper
 void print_memory(void *arr, int num) {
   unsigned char *p = (unsigned char *)arr;
-  for (size_t i = 0; i < num; i++) printf("%02x ", p[i]);
+  for (int i = 0; i < num; i++) {
+    unsigned char byte = p[i];
+    for (int j = 7; j >= 0; j--) {
+      printf("%d", (byte >> j) & 0x01);
+      if (j % 4 == 0) printf(" ");
+    }
+  }
   printf("\n");
 }
 
@@ -44,9 +51,9 @@ typedef struct smvm {
   listmv memory;
   listmv allocation;
   listmv bytecode;
-  smvm_size reg[smvm_register_num];
+  smvm_size registers[smvm_register_num];
   // 000 - ip: instruction pointer
-  // 001 - a:  not accumulator, rather a
+  // 001 - a:  NOT accumulator, rather a
   // 010 - b:  just b
   // 011 - c:  counter register
   // 100 - d:  destination register
@@ -72,13 +79,13 @@ typedef enum smvm_opcode {
   op_print_str = 0b100010,  // prints till it encounters 0x0000
 } smvm_opcode;
 
-typedef enum smvm_reg_operand {
+typedef enum smvm_register {
   reg_a = 0b000,
   reg_b = 0b001,
   reg_c = 0b010,
   reg_d = 0b011,
   reg_ip = 0b100,
-} smvm_reg_operand;
+} smvm_register;
 
 typedef enum smvm_inst_mode {
   // mode takes 2 bits
@@ -102,51 +109,67 @@ typedef struct smvm_inst {
 void smvm_init(smvm *vm);
 void smvm_load_inst(smvm *vm, smvm_inst *inst, long num);
 // void smvm_load_bytecode(smvm *vm, smvm_byte *code, long num); // TODO
-void smvm_execute_inst(smvm *vm);
+void smvm_execute(smvm *vm);
 void smvm_free(smvm *vm);
-
-// some helpers
-smvm_word smvm_next(smvm *vm);
 
 /* vm - implementation */
 
 void smvm_init(smvm *vm) {
-  listmv_init(&vm->bytecode, sizeof(smvm_word));
+  listmv_init(&vm->bytecode, sizeof(smvm_byte));
   listmv_init(&vm->memory, sizeof(smvm_size));
   // TODO, see if this can become 53-bit somehow
   listmv_init(&vm->allocation, sizeof(smvm_size));
 
-  for (int i = 0; i < smvm_register_num; i++) vm->reg[i] = 0;
+  for (int i = 0; i < smvm_register_num; i++) vm->registers[i] = 0;
 }
 
 void smvm_load_inst(smvm *vm, smvm_inst *inst, long num) {
   for (size_t i = 0; i < num; i++) {
     smvm_inst c = inst[i];
-    smvm_byte operand = c.code;
+    smvm_byte operand = (c.code << 2) | c.mode;
 
     // refer to [docs/BYTECODE.md]
     switch (c.mode) {
       case mode_indirect:
       case mode_register: {
-        smvm_word short_inst = (operand << 6) | c.x << 3 | c.y;
-        print_memory(&short_inst, 1);
-        listmv_push(&vm->bytecode, &short_inst);
+        smvm_byte inst[2] = {
+            operand,
+            (c.x << 3) | c.y,
+        };
+        listmv_push_array(&vm->bytecode, &inst, 2);
         break;
       }
 
-      // TODO fix bit shifting (>> 32, << 32 is off)
       case mode_immediate: {
         smvm_size addr = vm->allocation.len;
+        smvm_byte long_inst[8] = {
+            operand,
+            // first 5 bits of c.y (bit 53-48)
+            (c.x << 5 | (c.y >> 48) & 0x5),
+            // bits 47-32
+            (c.y >> 40) & 0xff,
+            (c.y >> 32) & 0xff,
+            // bits 31-16
+            (c.y >> 24) & 0xff,
+            (c.y >> 16) & 0xff,
+            // bits 15-0
+            c.y >> 8 & 0xff,
+            c.y & 0xff,
+        };
+
         listmv_push(&vm->allocation, &c.y);
+        listmv_push_array(&vm->bytecode, long_inst, 8);
         break;
       }
-      case mode_direct: {
-        smvm_size inst = (smvm_size)operand << 56 | (smvm_size)c.x << 53 | c.y;
-        break;
-      }
+        // TODO
+        // case mode_direct: {
+        //   smvm_size inst = (smvm_size)operand << 56 | (smvm_size)c.x << 53 |
+        //   c.y; break;
+        // }
 
       case mode_implicit: {
-        listmv_push(&vm->bytecode, (smvm_word *)&c.code);
+        smvm_word inst = c.code;
+        listmv_push(&vm->bytecode, &inst);
         break;
       }
 
@@ -156,24 +179,18 @@ void smvm_load_inst(smvm *vm, smvm_inst *inst, long num) {
   }
 }
 
-void smvm_fetch_inst(smvm *vm) {}
-
 void smvm_execute(smvm *vm) {
-  smvm_word word;
-
+  // TODO this
+  // 0 = MSB
   while (true) {
-    // TODO: perhaps move this to another function?
-    // TODO, all
+    // smvm_byte byte0 =
   }
 }
 
-void smvm_free(smvm *vm) {}
-
-// helper implementation
-
-smvm_word smvm_next(smvm *vm) {
-  smvm_word *next = (smvm_word *)listmv_at(&vm->bytecode, vm->reg[reg_ip]++);
-  return *next;
+void smvm_free(smvm *vm) {
+  listmv_free(&vm->allocation);
+  listmv_free(&vm->bytecode);
+  listmv_free(&vm->memory);
 }
 
 /* util - implementation */
@@ -193,6 +210,19 @@ void listmv_push(listmv *ls, void *data) {
 
   memcpy(ls->data + ls->len, data, ls->size);
   ls->len++;
+}
+
+void listmv_push_array(listmv *ls, void *data, size_t num) {
+  size_t required_capacity = ls->len + num;
+  if (required_capacity > ls->cap) {
+    while (ls->cap < required_capacity) {
+      ls->cap *= 2;
+    }
+    ls->data = realloc(ls->data, ls->cap * ls->size);
+  }
+
+  memcpy(ls->data + ls->len * ls->size, data, num * ls->size);
+  ls->len += num;
 }
 
 void *listmv_at(listmv *ls, smvm_size index) {
