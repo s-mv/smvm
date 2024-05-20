@@ -11,23 +11,23 @@
 // so is all of memory
 // I am generally very paranoid of stuff like this but for once in
 // my life I won't worry about it and just use fixed size registers
-typedef uint64_t smvm_size;
-typedef uint16_t smvm_word;
+typedef uint64_t u64;
+typedef uint16_t u16;
 typedef uint8_t u8;
 
 /* util */
 
 typedef struct listmv {
   void *data;
-  smvm_size len;
-  smvm_size cap;
+  u64 len;
+  u64 cap;
   long size;
 } listmv;
 
 void listmv_init(listmv *ls, long size);
 void listmv_push(listmv *ls, void *data);
 void listmv_push_array(listmv *ls, void *data, size_t num);
-void *listmv_at(listmv *ls, smvm_size index);
+void *listmv_at(listmv *ls, u64 index);
 void listmv_free(listmv *ls);
 
 // temp helper
@@ -51,7 +51,7 @@ typedef struct smvm {
   listmv memory;
   listmv allocation;
   listmv bytecode;
-  smvm_size registers[smvm_register_num];
+  u64 registers[smvm_register_num];
   // 000 - ip: instruction pointer
   // 001 - a:  NOT accumulator, rather a
   // 010 - b:  just b
@@ -61,20 +61,20 @@ typedef struct smvm {
 
 typedef enum smvm_opcode {
   // opcode takes 6 bits
-  op_halt = 0b000000,  // halts the program
-  op_mov = 0b000001,   // mov x y
-  op_add = 0b000010,   // add x y
-  op_sub = 0b000011,   // sub x y
-  op_jmp = 0b000100,   // jmp (to [d])
-  op_je = 0b000101,    // if (a == b) jmp (to [d])
-  op_jne = 0b000110,   // if (a != b) jmp (to [d])
-  op_jl = 0b000111,    // if (a < b) jmp (to [d])
-  op_loop = 0b001000,  // if (c > 0) dec c ; jmp (to [d])
-  op_inc = 0b001010,
-  op_dec = 0b001001,
+  op_halt = 0b00000,  // halts the program
+  op_mov = 0b00001,   // mov x y
+  op_add = 0b00010,   // add x y
+  op_sub = 0b00011,   // sub x y
+  op_jmp = 0b00100,   // jmp (to [d])
+  op_je = 0b00101,    // if (a == b) jmp (to [d])
+  op_jne = 0b00110,   // if (a != b) jmp (to [d])
+  op_jl = 0b00111,    // if (a < b) jmp (to [d])
+  op_loop = 0b01000,  // if (c > 0) dec c ; jmp (to [d])
+  op_inc = 0b01010,
+  op_dec = 0b01001,
   // NOTE: 1_____ > print instructions
   // these might be temporary instructio#ns
-  op_print_int = 0b100000,
+  op_print_int = 0b10000,
   op_print_float = 0b100001,
   op_print_str = 0b100010,  // prints till it encounters 0x0000
 } smvm_opcode;
@@ -102,8 +102,9 @@ typedef enum smvm_inst_mode {
 typedef struct smvm_inst {
   smvm_opcode code;
   smvm_inst_mode mode;
-  smvm_size x;
-  smvm_size y;
+  u64 x;
+  u64 y;
+  u64 z;
 } smvm_inst;
 
 void smvm_init(smvm *vm);
@@ -124,9 +125,9 @@ static u8 *smvm_fetch_inst_addr(smvm *vm) {
 
 void smvm_init(smvm *vm) {
   listmv_init(&vm->bytecode, sizeof(u8));
-  listmv_init(&vm->memory, sizeof(smvm_size));
+  listmv_init(&vm->memory, sizeof(u64));
   // TODO, see if this can become 53-bit somehow
-  listmv_init(&vm->allocation, sizeof(smvm_size));
+  listmv_init(&vm->allocation, sizeof(u64));
 
   for (int i = 0; i < smvm_register_num; i++) vm->registers[i] = 0;
 }
@@ -141,42 +142,36 @@ void smvm_load_inst(smvm *vm, smvm_inst *inst, long num) {
       case mode_indirect:
       case mode_register: {
         u8 inst[2] = {
-            operand,
-            (c.x << 3) | c.y,
+            (c.x << 7) | operand,
+            (c.x << 6) | (c.y << 3) | c.z,
         };
         listmv_push_array(&vm->bytecode, &inst, 2);
         break;
       }
 
       case mode_immediate: {
-        smvm_size addr = vm->allocation.len;
-        u8 long_inst[8] = {
+        u8 long_inst[10] = {
             operand,
-            // first 5 bits of c.y (bit 53-48)
-            (c.x << 5 | (c.y >> 48) & 0x5),
-            // bits 47-32
-            (c.y >> 40) & 0xff,
-            (c.y >> 32) & 0xff,
-            // bits 31-16
-            (c.y >> 24) & 0xff,
-            (c.y >> 16) & 0xff,
-            // bits 15-0
-            c.y >> 8 & 0xff,
-            c.y & 0xff,
+            // 3 bit c.x 2 bit c.y
+            (c.x << 3) | c.y,
+            // c.z is either a memory address or data
+            // either way it is 64 bit
+            (c.z >> 56) & 0xff,
+            (c.z >> 48) & 0xff,
+            (c.z >> 40) & 0xff,
+            (c.z >> 32) & 0xff,
+            (c.z >> 24) & 0xff,
+            (c.z >> 16) & 0xff,
+            (c.z >> 8) & 0xff,
+            c.z & 0xff,
         };
 
         listmv_push(&vm->allocation, &c.y);
-        listmv_push_array(&vm->bytecode, long_inst, 8);
         break;
       }
-        // TODO
-        // case mode_direct: {
-        //   smvm_size inst = (smvm_size)operand << 56 | (smvm_size)c.x << 53 |
-        //   c.y; break;
-        // }
 
       case mode_implicit: {
-        smvm_word inst = c.code;
+        u16 inst = c.code;
         listmv_push(&vm->bytecode, &inst);
         break;
       }
@@ -187,15 +182,16 @@ void smvm_load_inst(smvm *vm, smvm_inst *inst, long num) {
   }
 }
 
+// TODO revamp
 void smvm_execute(smvm *vm) {
   // TODO this
   // 0 = MSB
   while (true) {
     printf("ip -> %d : ", vm->registers[reg_ip]);
     u8 byte0 = *smvm_fetch_inst_addr(vm);
-    u8 opcode = byte0 >> 2;  // higher 6 bits
-    u8 mode = byte0 & 0x3;   // lower 2 bits
-    print_memory(&opcode, 1);
+    u8 opcode = (byte0 >> 2) & 0b11111;  // higher 5 bits
+    u8 mode = byte0 & 0b11;              // lower 2 bits
+
     switch (opcode) {
       case op_halt:
         return;  // TODO, so much (sighs)
@@ -214,12 +210,12 @@ void smvm_execute(smvm *vm) {
             smvm_ip_inc(vm);
 
             u8 byte1 = *smvm_fetch_inst_addr(vm);
-            u8 x = byte1 >> 5;                       // higher 3 bits
-            smvm_size y = ((u8)(byte1 & 0x11111) << 48);  // lower 5 bits
+            u8 x = byte1 >> 5;                      // higher 3 bits
+            u64 y = ((u8)(byte1 & 0x11111) << 48);  // lower 5 bits
             // unpack the next 6 bytes
-            y |= *(smvm_size *)smvm_fetch_inst_addr(vm) >> 16;
+            y |= *(u64 *)smvm_fetch_inst_addr(vm) >> 16;
             printf("%d", y);
-            smvm_size data = *(smvm_size *)listmv_at(&vm->memory, y);
+            u64 data = *(u64 *)listmv_at(&vm->memory, y);
 
             // finally move the data
             vm->registers[x] = data;
@@ -280,9 +276,7 @@ void listmv_push_array(listmv *ls, void *data, size_t num) {
   ls->len += num;
 }
 
-void *listmv_at(listmv *ls, smvm_size index) {
-  return ls->data + index * ls->size;
-}
+void *listmv_at(listmv *ls, u64 index) { return ls->data + index * ls->size; }
 
 void listmv_free(listmv *ls) {
   if (ls->data != NULL) free(ls->data);
