@@ -216,6 +216,7 @@ void smvm_execute(smvm *vm) {
             u8 regy = (byte1 >> 3) & 0b111;
             u8 regz = byte1 & 0b111;
             vm->registers[regy] = vm->registers[regz];
+            smvm_ip_inc(vm);
             break;
           }
 
@@ -226,6 +227,7 @@ void smvm_execute(smvm *vm) {
             // u8 regx = (byte0 >> 5 & 0b100) | (byte1 >> 6 & 0b011);
             u8 regy = (byte1 >> 3) & 0b111;
             u8 regz = byte1 & 0b111;
+            smvm_ip_inc(vm);
             u64 data = smvm_fetch_u64(vm);
             vm->registers[regy] = data;
             break;
@@ -235,6 +237,7 @@ void smvm_execute(smvm *vm) {
             smvm_ip_inc(vm);
             u8 byte1 = *smvm_fetch_inst_addr(vm);
             u8 regy = byte1 & 0b111;
+            smvm_ip_inc(vm);
             u64 data = smvm_fetch_u64(vm);
             // finally move the data
             vm->registers[regy] = data;
@@ -247,26 +250,37 @@ void smvm_execute(smvm *vm) {
             u8 regy = byte1 & 0b111;
             u64 addr = smvm_fetch_u64(vm);
             vm->registers[regy] = *(u64 *)listmv_at(&vm->memory, addr);
+            smvm_ip_inc(vm);
             break;
           }
 
           default:
             break;  // TODO: error detection
         }
-        smvm_ip_inc(vm);
         break;
       }
 
       case op_print_int: {
         switch (mode) {
-          case mode_immediate:
-          default:  // TODO implement other modes
+          case mode_immediate: {
             // skip 2 then fetch the next 8 bytes now
             smvm_ip_inc(vm);
             smvm_ip_inc(vm);
             u64 data = smvm_fetch_u64(vm);
             printf("%llu\n", data);  // NOTE remove \n later
             break;
+          }
+          case mode_register: {
+            smvm_ip_inc(vm);
+            u8 regz = *smvm_fetch_inst_addr(vm) & 0b111;
+            u64 data = vm->registers[regz];
+            printf("%llu\n", data);  // NOTE remove \n later
+            smvm_ip_inc(vm);
+            break;
+          }
+
+          default:
+            break;  // TODO implement other modes
         }
         break;
       }
