@@ -15,7 +15,7 @@ typedef uint64_t u64;
 typedef uint16_t u16;
 typedef uint8_t u8;
 
-/* util */
+/*** util ***/
 
 typedef struct listmv {
   void *data;
@@ -37,13 +37,16 @@ void print_memory(void *arr, int num) {
     unsigned char byte = p[i];
     for (int j = 7; j >= 0; j--) {
       printf("%d", (byte >> j) & 0x01);
-      if (j % 4 == 0) printf(" ");
+      if (j % 8 == 0)
+        printf("|");
+      else if (j % 4 == 0)
+        printf(" ");
     }
   }
   printf("\n");
 }
 
-/* vm */
+/*** vm ***/
 
 #define smvm_register_num (5)
 
@@ -75,8 +78,8 @@ typedef enum smvm_opcode {
   // NOTE: 1_____ > print instructions
   // these might be temporary instructio#ns
   op_print_int = 0b10000,
-  op_print_float = 0b100001,
-  op_print_str = 0b100010,  // prints till it encounters 0x0000
+  op_print_float = 0b10001,
+  op_print_str = 0b10010,  // prints till it encounters 0x0000
 } smvm_opcode;
 
 typedef enum smvm_register {
@@ -113,7 +116,12 @@ void smvm_load_inst(smvm *vm, smvm_inst *inst, long num);
 void smvm_execute(smvm *vm);
 void smvm_free(smvm *vm);
 
-/* vm - inline helpers */
+/* vm - helpers */
+u64 smvm_fetch_u64(smvm *vm);  // fetches 8 byte in native endian
+// converts to native endian from little-endian
+void *convert_endian(void *arr, int num);
+
+/*** vm - inline helpers ***/
 
 static void smvm_ip_inc(smvm *vm) { vm->registers[reg_ip]++; }
 
@@ -121,7 +129,7 @@ static u8 *smvm_fetch_inst_addr(smvm *vm) {
   return listmv_at(&vm->bytecode, vm->registers[reg_ip]);
 }
 
-/* vm - implementation */
+/*** vm - implementation ***/
 
 void smvm_init(smvm *vm) {
   listmv_init(&vm->bytecode, sizeof(u8));
@@ -142,31 +150,34 @@ void smvm_load_inst(smvm *vm, smvm_inst *inst, long num) {
       case mode_indirect:
       case mode_register: {
         u8 inst[2] = {
-            (c.x << 7) | operand,
-            (c.x << 6) | (c.y << 3) | c.z,
+            ((c.x & 0b111) << 7) | operand,
+            ((c.x & 0b111) << 6) | ((c.y & 0b111) << 3) | (c.z & 0b111),
         };
         listmv_push_array(&vm->bytecode, &inst, 2);
         break;
       }
 
+      case mode_direct:
       case mode_immediate: {
+        // TODO: use a loop or something, this is a pain to read
         u8 long_inst[10] = {
             operand,
             // 3 bit c.x 2 bit c.y
             (c.x << 3) | c.y,
             // c.z is either a memory address or data
             // either way it is 64 bit
-            (c.z >> 56) & 0xff,
-            (c.z >> 48) & 0xff,
-            (c.z >> 40) & 0xff,
+            // this is stored in little-endian
+            c.z & 0xff,
+            (c.z >> 8) & 0xff,
+            (c.z >> 16) & 0xff,
             (c.z >> 32) & 0xff,
             (c.z >> 24) & 0xff,
-            (c.z >> 16) & 0xff,
-            (c.z >> 8) & 0xff,
-            c.z & 0xff,
+            (c.z >> 40) & 0xff,
+            (c.z >> 48) & 0xff,
+            (c.z >> 56) & 0xff,
         };
 
-        listmv_push(&vm->allocation, &c.y);
+        listmv_push_array(&vm->bytecode, &long_inst, 10);
         break;
       }
 
@@ -185,12 +196,10 @@ void smvm_load_inst(smvm *vm, smvm_inst *inst, long num) {
 // TODO revamp
 void smvm_execute(smvm *vm) {
   // TODO this
-  // 0 = MSB
   while (true) {
-    printf("ip -> %d : ", vm->registers[reg_ip]);
     u8 byte0 = *smvm_fetch_inst_addr(vm);
-    u8 opcode = (byte0 >> 2) & 0b11111;  // higher 5 bits
-    u8 mode = byte0 & 0b11;              // lower 2 bits
+    u8 opcode = (byte0 >> 2) & 0b11111;
+    u8 mode = byte0 & 0b11;
 
     switch (opcode) {
       case op_halt:
@@ -199,32 +208,64 @@ void smvm_execute(smvm *vm) {
 
       case op_mov: {
         switch (mode) {
-          case mode_register:
+          case mode_register: {
             smvm_ip_inc(vm);
-            break;  // TODO
+            // why do I feel like there's a better way to do this?
+            u8 byte1 = *smvm_fetch_inst_addr(vm);
+            // u8 regx = (byte0 >> 5 & 0b100) | (byte1 >> 6 & 0b011);
+            u8 regy = (byte1 >> 3) & 0b111;
+            u8 regz = byte1 & 0b111;
+            vm->registers[regy] = vm->registers[regz];
+            break;
+          }
 
-          case mode_indirect:
-            break;  // TODO
+          case mode_indirect: {
+            smvm_ip_inc(vm);
+            // why do I feel like there's a better way to do this?
+            u8 byte1 = *smvm_fetch_inst_addr(vm);
+            // u8 regx = (byte0 >> 5 & 0b100) | (byte1 >> 6 & 0b011);
+            u8 regy = (byte1 >> 3) & 0b111;
+            u8 regz = byte1 & 0b111;
+            u64 data = smvm_fetch_u64(vm);
+            vm->registers[regy] = data;
+            break;
+          }
 
           case mode_immediate: {
             smvm_ip_inc(vm);
-
             u8 byte1 = *smvm_fetch_inst_addr(vm);
-            u8 x = byte1 >> 5;                      // higher 3 bits
-            u64 y = ((u8)(byte1 & 0x11111) << 48);  // lower 5 bits
-            // unpack the next 6 bytes
-            y |= *(u64 *)smvm_fetch_inst_addr(vm) >> 16;
-            printf("%d", y);
-            u64 data = *(u64 *)listmv_at(&vm->memory, y);
-
+            u8 regy = byte1 & 0b111;
+            u64 data = smvm_fetch_u64(vm);
             // finally move the data
-            vm->registers[x] = data;
-          } break;  // TODO
+            vm->registers[regy] = data;
+            break;
+          }
 
-          case mode_direct:
-            break;  // TODO
+          case mode_direct: {
+            smvm_ip_inc(vm);
+            u8 byte1 = *smvm_fetch_inst_addr(vm);
+            u8 regy = byte1 & 0b111;
+            u64 addr = smvm_fetch_u64(vm);
+            vm->registers[regy] = *(u64 *)listmv_at(&vm->memory, addr);
+            break;
+          }
 
           default:
+            break;  // TODO: error detection
+        }
+        smvm_ip_inc(vm);
+        break;
+      }
+
+      case op_print_int: {
+        switch (mode) {
+          case mode_immediate:
+          default:  // TODO implement other modes
+            // skip 2 then fetch the next 8 bytes now
+            smvm_ip_inc(vm);
+            smvm_ip_inc(vm);
+            u64 data = smvm_fetch_u64(vm);
+            printf("%llu\n", data);  // NOTE remove \n later
             break;
         }
         break;
@@ -233,8 +274,6 @@ void smvm_execute(smvm *vm) {
       default:
         break;
     }
-    vm->registers[reg_ip]++;
-    if (vm->registers[reg_ip] > 19) break;
   }
 }
 
@@ -244,7 +283,21 @@ void smvm_free(smvm *vm) {
   listmv_free(&vm->memory);
 }
 
-/* util - implementation */
+/* vm helpers - implementation */
+
+u64 smvm_fetch_u64(smvm *vm) {
+  u64 data = 0;
+  for (int i = 0; i < 8; i++) {
+    u8 byte = *smvm_fetch_inst_addr(vm);
+    smvm_ip_inc(vm);
+    data |= (u64)byte << (i << 3);
+  }
+  return data;
+}
+
+inline void *convert_endian(void *arr, int num) { return arr; }
+
+/*** util - implementation ***/
 
 void listmv_init(listmv *ls, long size) {
   ls->len = 0;

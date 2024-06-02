@@ -35,7 +35,7 @@ very different outputs than expected.
 +--------+  +--------+
 ```
 0. op code
-1. mode of operation (10 or 11)
+1. mode of operation (01 or 11)
 2. register or none
 3. register
 4. memory address or allocated address (64 bit)
@@ -43,7 +43,7 @@ very different outputs than expected.
 # Implicit mode instructions:
 ```
 +-----+--+
-|000000xx|
+|xxx00000|
 +-----+--+
 ```
 
@@ -52,4 +52,5 @@ very different outputs than expected.
 There is no need for mode here since the op code is enough.
 
 # Endianness
-TODO, lots to say here.
+TODO, lots to say here. ~~Lots of pain.~~
+
