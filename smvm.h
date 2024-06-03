@@ -250,12 +250,123 @@ void smvm_execute(smvm *vm) {
             u8 regy = byte1 & 0b111;
             u64 addr = smvm_fetch_u64(vm);
             vm->registers[regy] = *(u64 *)listmv_at(&vm->memory, addr);
-            smvm_ip_inc(vm);
             break;
           }
 
           default:
             break;  // TODO: error detection
+        }
+        break;
+      }
+
+      case op_add: {
+        switch (mode) {
+          case mode_register: {
+            // TODO: this is too repetitive? huhuhuh
+            smvm_ip_inc(vm);
+            u8 byte1 = *smvm_fetch_inst_addr(vm);
+            u8 regx = (byte0 >> 5 & 0b100) | (byte1 >> 6 & 0b011);
+            u8 regy = (byte1 >> 3) & 0b111;
+            u8 regz = byte1 & 0b111;
+            vm->registers[regx] = vm->registers[regy] + vm->registers[regz];
+            smvm_ip_inc(vm);
+            break;
+          }
+
+          case mode_indirect: {
+            smvm_ip_inc(vm);
+            // why do I feel like there's a better way to do this?
+            u8 byte1 = *smvm_fetch_inst_addr(vm);
+            u8 regx = (byte0 >> 5 & 0b100) | (byte1 >> 6 & 0b011);
+            u8 regy = (byte1 >> 3) & 0b111;
+            u8 regz = byte1 & 0b111;
+            smvm_ip_inc(vm);
+            u64 data = smvm_fetch_u64(vm);
+            vm->registers[regx] = vm->registers[regy] + data;
+            break;
+          }
+
+          case mode_immediate: {
+            smvm_ip_inc(vm);
+            u8 byte1 = *smvm_fetch_inst_addr(vm);
+            u8 regx = (byte1 >> 3) & 0b111;
+            u8 regy = byte1 & 0b111;
+            smvm_ip_inc(vm);
+            u64 data = smvm_fetch_u64(vm);
+            // finally move the data
+            vm->registers[regx] = vm->registers[regy] + data;
+            break;
+          }
+
+          case mode_direct: {
+            smvm_ip_inc(vm);
+            u8 byte1 = *smvm_fetch_inst_addr(vm);
+            u8 regx = (byte1 >> 3) & 0b111;
+            u8 regy = byte1 & 0b111;
+            u64 addr = smvm_fetch_u64(vm);
+            u64 data = *(u64 *)listmv_at(&vm->memory, addr);
+            vm->registers[regx] = vm->registers[regy] + data;
+            break;
+          }
+
+          default:
+            break;
+        }
+        break;
+      }
+
+      case op_sub: {
+        switch (mode) {
+          case mode_register: {
+            // TODO: this is too repetitive? huhuhuh
+            smvm_ip_inc(vm);
+            u8 byte1 = *smvm_fetch_inst_addr(vm);
+            u8 regx = (byte0 >> 5 & 0b100) | (byte1 >> 6 & 0b011);
+            u8 regy = (byte1 >> 3) & 0b111;
+            u8 regz = byte1 & 0b111;
+            vm->registers[regx] = vm->registers[regy] - vm->registers[regz];
+            smvm_ip_inc(vm);
+            break;
+          }
+
+          case mode_indirect: {
+            smvm_ip_inc(vm);
+            // why do I feel like there's a better way to do this?
+            u8 byte1 = *smvm_fetch_inst_addr(vm);
+            u8 regx = (byte0 >> 5 & 0b100) | (byte1 >> 6 & 0b011);
+            u8 regy = (byte1 >> 3) & 0b111;
+            u8 regz = byte1 & 0b111;
+            smvm_ip_inc(vm);
+            u64 data = smvm_fetch_u64(vm);
+            vm->registers[regx] = vm->registers[regy] - data;
+            break;
+          }
+
+          case mode_immediate: {
+            smvm_ip_inc(vm);
+            u8 byte1 = *smvm_fetch_inst_addr(vm);
+            u8 regx = (byte1 >> 3) & 0b111;
+            u8 regy = byte1 & 0b111;
+            smvm_ip_inc(vm);
+            u64 data = smvm_fetch_u64(vm);
+            // finally move the data
+            vm->registers[regx] = vm->registers[regy] - data;
+            break;
+          }
+
+          case mode_direct: {
+            smvm_ip_inc(vm);
+            u8 byte1 = *smvm_fetch_inst_addr(vm);
+            u8 regx = (byte1 >> 3) & 0b111;
+            u8 regy = byte1 & 0b111;
+            u64 addr = smvm_fetch_u64(vm);
+            u64 data = *(u64 *)listmv_at(&vm->memory, addr);
+            vm->registers[regx] = vm->registers[regy] - data;
+            break;
+          }
+
+          default:
+            break;
         }
         break;
       }
