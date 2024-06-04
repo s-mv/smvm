@@ -60,6 +60,7 @@ typedef struct smvm {
   // 010 - b:  just b
   // 011 - c:  counter register
   // 100 - d:  destination register
+  u16 flags;
 } smvm;
 
 typedef enum smvm_opcode {
@@ -89,6 +90,14 @@ typedef enum smvm_register {
   reg_d = 0b011,
   reg_ip = 0b100,
 } smvm_register;
+
+typedef enum smvm_flag {
+  flag_o = 1,       // overflow
+  flag_d = 1 << 1,  // direction
+  flag_t = 1 << 2,  // trap ~TODO add errors~
+  flag_s = 1 << 3,  // sign
+  flag_z = 1 << 4,  // zero
+} smvm_flag;
 
 typedef enum smvm_inst_mode {
   // mode takes 2 bits
@@ -123,10 +132,14 @@ void *convert_endian(void *arr, int num);
 
 /*** vm - inline helpers ***/
 
-static void smvm_ip_inc(smvm *vm) { vm->registers[reg_ip]++; }
+static inline void smvm_ip_inc(smvm *vm) { vm->registers[reg_ip]++; }
 
-static u8 *smvm_fetch_inst_addr(smvm *vm) {
+static inline u8 *smvm_fetch_inst_addr(smvm *vm) {
   return listmv_at(&vm->bytecode, vm->registers[reg_ip]);
+}
+
+static inline u16 smvm_get_flag(smvm *vm, smvm_flag flag) {
+  return vm->flags & flag;
 }
 
 /*** vm - implementation ***/
@@ -378,14 +391,14 @@ void smvm_execute(smvm *vm) {
             smvm_ip_inc(vm);
             smvm_ip_inc(vm);
             u64 data = smvm_fetch_u64(vm);
-            printf("%llu\n", data);  // NOTE remove \n later
+            printf("%lli\n", data);  // NOTE remove \n later
             break;
           }
           case mode_register: {
             smvm_ip_inc(vm);
             u8 regz = *smvm_fetch_inst_addr(vm) & 0b111;
             u64 data = vm->registers[regz];
-            printf("%llu\n", data);  // NOTE remove \n later
+            printf("%lli\n", data);  // NOTE remove \n later
             smvm_ip_inc(vm);
             break;
           }
