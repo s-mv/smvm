@@ -142,6 +142,18 @@ static inline u16 smvm_get_flag(smvm *vm, smvm_flag flag) {
   return vm->flags & flag;
 }
 
+// avoids code repetition
+static inline void smvm_handle_op(smvm *vm, u8 byte0,
+                                  void (*op_func)(smvm *, u8, u8, u8)) {
+  smvm_ip_inc(vm);
+  u8 byte1 = *smvm_fetch_inst_addr(vm);
+  u8 regx = (byte0 >> 5 & 0b100) | (byte1 >> 6 & 0b011);
+  u8 regy = (byte1 >> 3) & 0b111;
+  u8 regz = byte1 & 0b111;
+  op_func(vm, regx, regy, regz);
+  smvm_ip_inc(vm);
+}
+
 /*** vm - implementation ***/
 
 void smvm_init(smvm *vm) {
@@ -172,24 +184,13 @@ void smvm_load_inst(smvm *vm, smvm_inst *inst, long num) {
 
       case mode_direct:
       case mode_immediate: {
-        // TODO: use a loop or something, this is a pain to read
         u8 long_inst[10] = {
             operand,
-            // 3 bit c.x 2 bit c.y
             (c.x << 3) | c.y,
-            // c.z is either a memory address or data
-            // either way it is 64 bit
-            // this is stored in little-endian
-            c.z & 0xff,
-            (c.z >> 8) & 0xff,
-            (c.z >> 16) & 0xff,
-            (c.z >> 32) & 0xff,
-            (c.z >> 24) & 0xff,
-            (c.z >> 40) & 0xff,
-            (c.z >> 48) & 0xff,
-            (c.z >> 56) & 0xff,
         };
-
+        for (int j = 0; j < 8; j++) {
+          long_inst[2 + j] = (c.z >> (8 * j)) & 0xff;
+        }
         listmv_push_array(&vm->bytecode, &long_inst, 10);
         break;
       }
@@ -206,214 +207,71 @@ void smvm_load_inst(smvm *vm, smvm_inst *inst, long num) {
   }
 }
 
-// TODO revamp
+/* NOTE these aren't inline helpers! these are the real deal */
+static inline void add_op(smvm *vm, u8 regx, u8 regy, u8 regz) {
+  vm->registers[regx] = vm->registers[regy] + vm->registers[regz];
+}
+
+static inline void sub_op(smvm *vm, u8 regx, u8 regy, u8 regz) {
+  vm->registers[regx] = vm->registers[regy] - vm->registers[regz];
+}
+
+static inline void mov_op(smvm *vm, u8 regx, u8 regy, u8 regz) {
+  vm->registers[regy] = vm->registers[regz];
+}
+
+// this is the *realer* deal (or not but who cares)
+// TODO error return type
 void smvm_execute(smvm *vm) {
-  // TODO this
   while (true) {
-    u8 byte0 = *smvm_fetch_inst_addr(vm);
-    u8 opcode = (byte0 >> 2) & 0b11111;
-    u8 mode = byte0 & 0b11;
+    u8 *ptr = smvm_fetch_inst_addr(vm);
+    u8 byte0 = *ptr;
+    smvm_ip_inc(vm);
+    smvm_opcode code = byte0 >> 2;
 
-    switch (opcode) {
+    switch (code) {
       case op_halt:
-        return;  // TODO, so much (sighs)
+        return;
+
+      case op_add:
+        smvm_handle_op(vm, byte0, add_op);
         break;
 
-      case op_mov: {
-        switch (mode) {
-          case mode_register: {
-            smvm_ip_inc(vm);
-            // why do I feel like there's a better way to do this?
-            u8 byte1 = *smvm_fetch_inst_addr(vm);
-            // u8 regx = (byte0 >> 5 & 0b100) | (byte1 >> 6 & 0b011);
-            u8 regy = (byte1 >> 3) & 0b111;
-            u8 regz = byte1 & 0b111;
-            vm->registers[regy] = vm->registers[regz];
-            smvm_ip_inc(vm);
-            break;
-          }
-
-          case mode_indirect: {
-            smvm_ip_inc(vm);
-            // why do I feel like there's a better way to do this?
-            u8 byte1 = *smvm_fetch_inst_addr(vm);
-            // u8 regx = (byte0 >> 5 & 0b100) | (byte1 >> 6 & 0b011);
-            u8 regy = (byte1 >> 3) & 0b111;
-            u8 regz = byte1 & 0b111;
-            smvm_ip_inc(vm);
-            u64 data = smvm_fetch_u64(vm);
-            vm->registers[regy] = data;
-            break;
-          }
-
-          case mode_immediate: {
-            smvm_ip_inc(vm);
-            u8 byte1 = *smvm_fetch_inst_addr(vm);
-            u8 regy = byte1 & 0b111;
-            smvm_ip_inc(vm);
-            u64 data = smvm_fetch_u64(vm);
-            // finally move the data
-            vm->registers[regy] = data;
-            break;
-          }
-
-          case mode_direct: {
-            smvm_ip_inc(vm);
-            u8 byte1 = *smvm_fetch_inst_addr(vm);
-            u8 regy = byte1 & 0b111;
-            u64 addr = smvm_fetch_u64(vm);
-            vm->registers[regy] = *(u64 *)listmv_at(&vm->memory, addr);
-            break;
-          }
-
-          default:
-            break;  // TODO: error detection
-        }
+      case op_sub:
+        smvm_handle_op(vm, byte0, sub_op);
         break;
-      }
 
-      case op_add: {
-        switch (mode) {
-          case mode_register: {
-            // TODO: this is too repetitive? huhuhuh
-            smvm_ip_inc(vm);
-            u8 byte1 = *smvm_fetch_inst_addr(vm);
-            u8 regx = (byte0 >> 5 & 0b100) | (byte1 >> 6 & 0b011);
-            u8 regy = (byte1 >> 3) & 0b111;
-            u8 regz = byte1 & 0b111;
-            vm->registers[regx] = vm->registers[regy] + vm->registers[regz];
-            smvm_ip_inc(vm);
-            break;
-          }
-
-          case mode_indirect: {
-            smvm_ip_inc(vm);
-            // why do I feel like there's a better way to do this?
-            u8 byte1 = *smvm_fetch_inst_addr(vm);
-            u8 regx = (byte0 >> 5 & 0b100) | (byte1 >> 6 & 0b011);
-            u8 regy = (byte1 >> 3) & 0b111;
-            u8 regz = byte1 & 0b111;
-            smvm_ip_inc(vm);
-            u64 data = smvm_fetch_u64(vm);
-            vm->registers[regx] = vm->registers[regy] + data;
-            break;
-          }
-
-          case mode_immediate: {
-            smvm_ip_inc(vm);
-            u8 byte1 = *smvm_fetch_inst_addr(vm);
-            u8 regx = (byte1 >> 3) & 0b111;
-            u8 regy = byte1 & 0b111;
-            smvm_ip_inc(vm);
-            u64 data = smvm_fetch_u64(vm);
-            // finally move the data
-            vm->registers[regx] = vm->registers[regy] + data;
-            break;
-          }
-
-          case mode_direct: {
-            smvm_ip_inc(vm);
-            u8 byte1 = *smvm_fetch_inst_addr(vm);
-            u8 regx = (byte1 >> 3) & 0b111;
-            u8 regy = byte1 & 0b111;
-            u64 addr = smvm_fetch_u64(vm);
-            u64 data = *(u64 *)listmv_at(&vm->memory, addr);
-            vm->registers[regx] = vm->registers[regy] + data;
-            break;
-          }
-
-          default:
-            break;
-        }
+      case op_mov:
+        smvm_handle_op(vm, byte0, mov_op);
         break;
-      }
-
-      case op_sub: {
-        switch (mode) {
-          case mode_register: {
-            // TODO: this is too repetitive? huhuhuh
-            smvm_ip_inc(vm);
-            u8 byte1 = *smvm_fetch_inst_addr(vm);
-            u8 regx = (byte0 >> 5 & 0b100) | (byte1 >> 6 & 0b011);
-            u8 regy = (byte1 >> 3) & 0b111;
-            u8 regz = byte1 & 0b111;
-            vm->registers[regx] = vm->registers[regy] - vm->registers[regz];
-            smvm_ip_inc(vm);
-            break;
-          }
-
-          case mode_indirect: {
-            smvm_ip_inc(vm);
-            // why do I feel like there's a better way to do this?
-            u8 byte1 = *smvm_fetch_inst_addr(vm);
-            u8 regx = (byte0 >> 5 & 0b100) | (byte1 >> 6 & 0b011);
-            u8 regy = (byte1 >> 3) & 0b111;
-            u8 regz = byte1 & 0b111;
-            smvm_ip_inc(vm);
-            u64 data = smvm_fetch_u64(vm);
-            vm->registers[regx] = vm->registers[regy] - data;
-            break;
-          }
-
-          case mode_immediate: {
-            smvm_ip_inc(vm);
-            u8 byte1 = *smvm_fetch_inst_addr(vm);
-            u8 regx = (byte1 >> 3) & 0b111;
-            u8 regy = byte1 & 0b111;
-            smvm_ip_inc(vm);
-            u64 data = smvm_fetch_u64(vm);
-            // finally move the data
-            vm->registers[regx] = vm->registers[regy] - data;
-            break;
-          }
-
-          case mode_direct: {
-            smvm_ip_inc(vm);
-            u8 byte1 = *smvm_fetch_inst_addr(vm);
-            u8 regx = (byte1 >> 3) & 0b111;
-            u8 regy = byte1 & 0b111;
-            u64 addr = smvm_fetch_u64(vm);
-            u64 data = *(u64 *)listmv_at(&vm->memory, addr);
-            vm->registers[regx] = vm->registers[regy] - data;
-            break;
-          }
-
-          default:
-            break;
-        }
-        break;
-      }
 
       case op_print_int: {
-        switch (mode) {
-          case mode_immediate: {
-            // skip 2 then fetch the next 8 bytes now
-            smvm_ip_inc(vm);
-            smvm_ip_inc(vm);
-            u64 data = smvm_fetch_u64(vm);
-            printf("%lli\n", data);  // NOTE remove \n later
-            break;
-          }
-          case mode_register: {
-            smvm_ip_inc(vm);
-            u8 regz = *smvm_fetch_inst_addr(vm) & 0b111;
-            u64 data = vm->registers[regz];
-            printf("%lli\n", data);  // NOTE remove \n later
-            smvm_ip_inc(vm);
-            break;
-          }
-
-          default:
-            break;  // TODO implement other modes
+        u8 mode = byte0 & 0b11;
+        if (mode == mode_register) {
+          u8 reg = (byte0 >> 5);
+          printf("%lu\n", vm->registers[reg]);
         }
+        smvm_ip_inc(vm);
         break;
       }
 
-      default:
+      case op_print_str: {
+        u8 mode = byte0 & 0b11;
+        if (mode == mode_register) {
+          u8 reg = (byte0 >> 5);
+          printf("%s\n", (char *)listmv_at(&vm->memory, vm->registers[reg]));
+        }
+        smvm_ip_inc(vm);
+        break;
+      }
+
+      default:  // error
         break;
     }
   }
 }
+
+/* vm helpers - implementation */
 
 void smvm_free(smvm *vm) {
   listmv_free(&vm->allocation);
@@ -421,56 +279,47 @@ void smvm_free(smvm *vm) {
   listmv_free(&vm->memory);
 }
 
-/* vm helpers - implementation */
-
 u64 smvm_fetch_u64(smvm *vm) {
-  u64 data = 0;
-  for (int i = 0; i < 8; i++) {
-    u8 byte = *smvm_fetch_inst_addr(vm);
-    smvm_ip_inc(vm);
-    data |= (u64)byte << (i << 3);
-  }
-  return data;
+  u64 val;
+  memcpy(&val, smvm_fetch_inst_addr(vm), sizeof(u64));
+  smvm_ip_inc(vm);
+  return val;
 }
 
-inline void *convert_endian(void *arr, int num) { return arr; }
+// assuming little-endian, no-op
+void *convert_endian(void *arr, int num) { return arr; }
 
 /*** util - implementation ***/
 
 void listmv_init(listmv *ls, long size) {
   ls->len = 0;
-  ls->cap = 8;
-  ls->data = malloc(size * ls->cap * sizeof(char));
+  ls->cap = 1;
   ls->size = size;
+  ls->data = calloc(ls->cap, size);
 }
 
 void listmv_push(listmv *ls, void *data) {
   if (ls->len >= ls->cap) {
-    ls->data = realloc(ls->data, (size_t)ls->cap * ls->size * sizeof(char) * 2);
     ls->cap *= 2;
+    ls->data = realloc(ls->data, ls->cap * ls->size);
   }
-
-  memcpy(ls->data + ls->len, data, ls->size);
+  memcpy((char *)ls->data + ls->len * ls->size, data, ls->size);
   ls->len++;
 }
 
 void listmv_push_array(listmv *ls, void *data, size_t num) {
-  size_t required_capacity = ls->len + num;
-  if (required_capacity > ls->cap) {
-    while (ls->cap < required_capacity) {
-      ls->cap *= 2;
-    }
+  while (ls->len + num >= ls->cap) {
+    ls->cap *= 2;
     ls->data = realloc(ls->data, ls->cap * ls->size);
   }
-
-  memcpy(ls->data + ls->len * ls->size, data, num * ls->size);
+  memcpy((char *)ls->data + ls->len * ls->size, data, num * ls->size);
   ls->len += num;
 }
 
-void *listmv_at(listmv *ls, u64 index) { return ls->data + index * ls->size; }
-
-void listmv_free(listmv *ls) {
-  if (ls->data != NULL) free(ls->data);
+void *listmv_at(listmv *ls, u64 index) {
+  return (char *)ls->data + index * ls->size;
 }
+
+void listmv_free(listmv *ls) { free(ls->data); }
 
 #endif
