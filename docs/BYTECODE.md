@@ -11,7 +11,7 @@ very different outputs than expected.
 # Register/Indirect addressing mode:
 ```
 ++----+--+  +-+--+---+
-|21100000|  |22333444|
+|20000011|  |22333444|
 ++----+--+  +-+--+---+
 ```
 0 - op code
