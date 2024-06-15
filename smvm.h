@@ -148,6 +148,11 @@ static void smvm_handle_op(smvm *vm, u8 byte0,
 void *convert_endian(void *arr, int num);
 static void update_flags(smvm *vm, u64 result);
 
+/*** vm - type representation helpers for the user ***/
+
+u64 repr_f64(f64 data) { return *(u64 *)&data; }
+// TODO, add more later
+
 /*** vm - inline helpers ***/
 
 static inline void smvm_ip_inc(smvm *vm) { vm->registers[reg_ip]++; }
@@ -315,8 +320,7 @@ static inline void print_intu_op(smvm *vm, u8 regx, u8 regy, u64 data) {
 }
 
 static inline void print_float_op(smvm *vm, u8 regx, u8 regy, u64 data) {
-  f64 *fdata = (f64 *)&data;
-  printf("%lf\n", fdata);
+  printf("%lf\n", *(f64 *)&data);
 }
 
 // realer deal (maybe not)
