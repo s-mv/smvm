@@ -1,4 +1,4 @@
-mov     ra 32
+mov     ra 1_420
 mov     rb 64
 add     ra rb ra
 printi  ra

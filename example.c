@@ -50,9 +50,10 @@ int main() {
   smvm_init(&vm);
   printf("%s\n", content);
 
-  smvm_assemble(&vm, content);
+  smvm_assemble(&vm, content, false);
 
   free(content);
+  smvm_free(&vm);
   return 0;
 }
 
