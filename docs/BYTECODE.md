@@ -12,10 +12,10 @@ trying to figure out what's wrong with my code, or me, mostly.)
 ## Layout of the bytecode
 Operands and data in the bytecode **do not** have a fixed size in the SMVM.
 However the bytecode has a _direction_ of data, as shown below:  
-`opcode -> info bits -> width bits -> data`
+`opcode -> mode bits -> width bits -> data`
 
 1. The opcode takes 6 bits.
-2. The info bits consistitute of 3, 2-bit pairs. Each pair corresponds to one
+2. The mode bits consistitute of 3, 2-bit pairs. Each pair corresponds to one
 operand.
 3. The width bits constitute of 3, 2-bit pairs. Each pair, again, is tied to
 one operand.
@@ -26,16 +26,16 @@ Registers are enumerated by 3 bits.
 This is how bytecode typically ends up looking:
 ```
 +--------+ +--------+ +--------+ +--------+ +--- ...
-|22111111| |22333333| |22444555| |     666| | data ...
+|22111111| |22333333| |22555444| |     666| | data ...
 +--------+ +--------+ +--------+ +--------+ +--- ...
 ```
 1. opcode
-2. info bits
+2. mode bits
 3. width bits
 4. register x
 5. register y
 6. register z
-Followed by data if any. The last byte isn't included for modes that require it.
+Followed by data if any. The last byte is only included for modes that require it.
 
 **Exception**: Immediate mode opcodes are simply stored as a single address.
 ```
