@@ -12,7 +12,7 @@ trying to figure out what's wrong with my code, or me, mostly.)
 ## Layout of the bytecode
 Operands and data in the bytecode **do not** have a fixed size in the SMVM.
 However the bytecode has a _direction_ of data, as shown below:  
-`opcode -> mode bits -> width bits -> data`
+`opcode -> mode bits and width bits -> register bits -> data`
 
 1. The opcode takes 6 bits.
 2. The mode bits consistitute of 3, 2-bit pairs. Each pair corresponds to one
@@ -23,88 +23,47 @@ one operand.
 These bits are followed by either register codes or address/data bits.
 Registers are enumerated by 3 bits.
 
-This is how bytecode typically ends up looking:
+This is how bytecode for a large instruction typically ends up looking:
 ```
 +--------+ +--------+ +--------+ +--------+ +--- ...
 |22111111| |22333333| |22555444| |     666| | data ...
 +--------+ +--------+ +--------+ +--------+ +--- ...
 ```
 1. opcode
-2. mode bits
+2. mode bits (0x = needs register, 1x = needs data)
 3. width bits
-4. register x
+4. register x (or in case of direct mode, data size)
 5. register y
 6. register z
 Followed by data if any. The last byte is only included for modes that require it.
 
-**Exception**: Immediate mode opcodes are simply stored as a single address.
+For conevience here's the layout for bytecode for instructions with 3, 2, and
+1 register-sized operand.
+
+**3 operands:**
 ```
-+--------+
-|  111111|
-+--------+
++--------+ +--------+ +--------+ +--------+
+|22111111| |22333333| |22555444| |     666|
++--------+ +--------+ +--------+ +--------+
 ```
-
-<!-- # Register
-# Indirect addressing mode:
+**2 operands:**
 ```
-+-+----+-+  +---+----+  +-+-+----+
-|00000011|  |12233333|  |22244444|
-+-+----+-+  +---+----+  +-+-+----+
++--------+ +--------+ +--------+
+|22111111| |  223333| |  555444|
++--------+ +--------+ +--------+
 ```
-0 - op code
-1 - mode of operation (00 or 10)
-2 - register or nothing
-3 - register
-4 - register
-
-**Example**: `add a b c` translates to `a = b + c`. Or `add a b [c]`
-translates to `a = b + [c]`.
-
-# Immediate/Direct addressing mode:
+**1 operand:**
 ```
-+-+----+-+  +---+----+  +--------+  +--------+
-|00000011|  |12233333|  |xxx44222|  |55555555|
-+-+----+-+  +---+----+  +--------+  +--------+
-
-+--------+  +--------+  +--------+  +-------
-|55555555|  |55555555|  |55555555|  |555555...
-+--------+  +--------+  +--------+  +-------
++--------+ +--------+ +--------+
+|22111111| |      33| |     444|
++--------+ +--------+ +--------+
 ```
-0. op code
-1. mode of operation (01 or 11)
-2. register or nothing
-3. register
-4. width of memory
-5. data (8/16/32/64 bit for int, 32/64 bit for float)
-OR memory address (64 bit)
+As you can see, it's quite intuitive.
 
-**Example**: `add a b 32` translates to `a = b + 32`. Or `add a b [32]`
-translates to `a = b + [32]`.
-
-# Implicit mode instructions:
+**Extra case:** Immediate mode opcodes are simply stored as a single address,
+possible followed by data.
 ```
-+-----+--+
-|xx000000|
-+-----+--+
++--------+ +--- ...
+|  111111| | data ...
++--------+ +--- ...
 ```
-
-0. op code
-
-There is no need for mode here since the op code is enough.
-
-# The reverse mode bit.
-
-The reverse mode bit only works for direct and indirect addressing modes.
-The isolated bit of the mode bits is referred to as the reverse mode bit.
-If the reverse bit is 1, when the instructios are in such a manner:
-- `add [a] b c` as opposed to `add a b [c]`
-- `add [32] b c`
-- `mov [a] b` as opposed to `mov a [b]`
-- `mov [32] b`
-and so on.
-
-The reason behind its naming is that the bytecode for `mov a [b]` and
-`mov [b] a` is identical, the only difference being the reverse mode bit.
-
-# Endianness
-TODO, lots to say here. ~~Lots of pain.~~ -->
