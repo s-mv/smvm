@@ -41,11 +41,12 @@ static inline void mov_mem(u8 *dest, u8 *src, u64 size) {
   while (size--) *dest++ = *src++;
 }
 
-static inline u64 mask(u8 n) {
-    return ~(~0ull << n);
+static inline void mov_mem_reverse(u8 *dest, u8 *src, u64 size) {
+  dest += size - 1;
+  while (size--) *dest-- = *src++;
 }
 
-// static inline void mov_mem()
+static inline u64 mask(u8 n) { return ~(~0ull << n); }
 
 // temp helper
 void print_memory(void *arr, int num) {
@@ -74,8 +75,8 @@ typedef struct smvm {
   u64 registers[smvm_register_num];
   u16 flags;
   // this is all cache, maybe I should make another struct
-  u64 *pointers[3];
-  u64 data[3];
+  i64 *pointers[3];
+  i64 data[3];
   u8 widths[3];
   u8 offset;
 } smvm;
@@ -216,13 +217,14 @@ static inline void smvm_reset_flag(smvm *vm, smvm_flag flag) {
 /* vm - opcode function */
 void trap_fn(smvm *vm) { smvm_set_flag(vm, flag_t); }
 void mov_fn(smvm *vm) {
-  *vm->pointers[0] = *vm->pointers[1];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)vm->pointers[1], vm->widths[0]);
   smvm_ip_inc(vm, vm->offset);
 }
 void swap_fn(smvm *vm) {}
 void lea_fn(smvm *vm) {}
 void add_fn(smvm *vm) {
-  *vm->pointers[0] = *vm->pointers[1] + *vm->pointers[2];
+  i64 sum = *vm->pointers[1] + *vm->pointers[2];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)&sum, vm->widths[0]);
   smvm_ip_inc(vm, vm->offset);
 }
 void addu_fn(smvm *vm) {}
@@ -260,7 +262,9 @@ void push_fn(smvm *vm) {}
 void pop_fn(smvm *vm) {}
 void printi_fn(smvm *vm) {}
 void printu_fn(smvm *vm) {
-  printf("%ld\n", *vm->pointers[0] & mask(vm->widths[0]));
+  u64 data;
+  mov_mem((u8 *)&data, (u8 *)vm->pointers[0], vm->widths[0]);
+  printf("%lu\n", data);
   smvm_ip_inc(vm, vm->offset);
 }
 void printf_fn(smvm *vm) {}
@@ -324,11 +328,10 @@ instruction_info instruction_table[] = {
 /*** vm - implementation ***/
 
 void smvm_init(smvm *vm) {
+  *vm = (smvm){0};
   listmv_init(&vm->bytecode, sizeof(u8));
   listmv_init(&vm->memory, sizeof(u8));
   listmv_init(&vm->stack, sizeof(u8));
-
-  for (int i = 0; i < smvm_register_num; i++) vm->registers[i] = 0;
 }
 
 // TODO error return type
@@ -344,9 +347,8 @@ void smvm_execute(smvm *vm) {
       u8 reg[3] = {inst[2] & 7, (inst[2] >> 3) & 7, inst[3] & 7};
       u8 offset = num_ops != 3 ? 3 : 4;
 
-      if (inst[0])
-        for (int i = 0; i < num_ops; i++)
-          vm->widths[i] = 1 << ((inst[1] >> (i * 2)) & 3);
+      for (int i = 0; i < num_ops; i++)
+        vm->widths[i] = 1 << ((inst[1] >> (i * 2)) & 3);
 
       for (int i = 0; i < num_ops; i++) {
         switch (inst[i] >> 6) {
@@ -354,7 +356,7 @@ void smvm_execute(smvm *vm) {
             vm->pointers[i] = &vm->registers[reg[i]];
             break;
           case mode_indirect:
-            listmv_grow(&vm->memory, vm->registers[reg[i]] + 1);
+            listmv_grow(&vm->memory, vm->registers[reg[i]] + vm->widths[i] + 1);
             vm->pointers[i] = listmv_at(&vm->memory, vm->registers[reg[i]]);
             break;
           case mode_direct: {
@@ -362,7 +364,7 @@ void smvm_execute(smvm *vm) {
             u64 address = 0;
             // reg also holds size
             mov_mem((u8 *)&address, inst + offset, size);
-            listmv_grow(&vm->memory, address + 1);
+            listmv_grow(&vm->memory, address + vm->widths[i] + 1);
             offset += size;
             vm->pointers[i] = listmv_at(&vm->memory, address);
             break;
@@ -370,9 +372,9 @@ void smvm_execute(smvm *vm) {
           case mode_immediate:
             u8 size = 1 << (reg[i] & 3);
             vm->data[i] = 0;
-            mov_mem((u8 *)(vm->data + i), inst + offset, size);
+            mov_mem_reverse((u8 *)(&vm->data[i]), inst + offset, size);
             offset += size;
-            vm->pointers[i] = vm->data + i;
+            vm->pointers[i] = &vm->data[i];
             break;
           default:  // idk what this is for
             break;
