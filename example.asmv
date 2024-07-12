@@ -1,12 +1,6 @@
-puts "Enter a number... "
-getu   ra
-mov    rc   1
-
-.factorial
-    mul    rc   ra  rc
-    dec    ra
-    jne    ra    1  .factorial 
-
-printu  rc
-
+call .fn
 halt
+
+.fn
+    putu 69
+    ret
