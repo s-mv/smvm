@@ -1,5 +1,12 @@
-mov    @0   69
-mov    @8   420
-add    @0   @8  @0
-printu @0
+puts "Enter a number... "
+getu   ra
+mov    rc   1
+
+.factorial
+    mul    rc   ra  rc
+    dec    ra
+    jne    ra    1  .factorial 
+
+printu  rc
+
 halt

@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef uint64_t u64;
 typedef uint32_t u32;
@@ -116,17 +117,15 @@ typedef enum smvm_opcode {
   op_loop = 0b011111,  // if (c > 0) dec c jmp back here
   op_call = 0b100000,  // call x
   // proc x start <opcodes> return
-  op_proc = 0b100001,
-  op_start = 0b100010,
-  op_return = 0b100011,
-  op_push = 0b100100,  // push x
-  op_pop = 0b100101,   // pop x
+  op_return = 0b100001,
+  op_push = 0b100010,  // push x
+  op_pop = 0b100011,   // pop x
   // NOTE: 1111__ > print instructions
   // these might be temporary instructions
-  op_printi = 0b111100 - 22,  // print integer
-  op_printu = 0b111101 - 22,  // print unsigned integer
-  op_printf = 0b111110 - 22,  // print float
-  op_prints = 0b111111 - 22,  // print string
+  op_printi = 0b111100 - 24,  // print integer
+  op_printu = 0b111101 - 24,  // print unsigned integer
+  op_printf = 0b111110 - 24,  // print float
+  op_prints = 0b111111 - 24,  // print string
 } smvm_opcode;
 
 typedef enum smvm_register {
@@ -223,23 +222,59 @@ void mov_fn(smvm *vm) {
 void swap_fn(smvm *vm) {}
 void lea_fn(smvm *vm) {}
 void add_fn(smvm *vm) {
-  i64 sum = *vm->pointers[1] + *vm->pointers[2];
-  mov_mem((u8 *)vm->pointers[0], (u8 *)&sum, vm->widths[0]);
+  i64 result = *vm->pointers[1] + *vm->pointers[2];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
   smvm_ip_inc(vm, vm->offset);
 }
-void addu_fn(smvm *vm) {}
-void addf_fn(smvm *vm) {}
-void sub_fn(smvm *vm) {}
-void subu_fn(smvm *vm) {}
+void addu_fn(smvm *vm) {
+  u64 result = *(u64 *)vm->pointers[1] + *(u64 *)vm->pointers[2];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
+void addf_fn(smvm *vm) {
+  // TODO, float
+}
+void sub_fn(smvm *vm) {
+  i64 result = *vm->pointers[1] - *vm->pointers[2];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
+void subu_fn(smvm *vm) {
+  u64 result = *(u64 *)vm->pointers[1] - *(u64 *)vm->pointers[2];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
 void subf_fn(smvm *vm) {}
-void mul_fn(smvm *vm) {}
-void mulu_fn(smvm *vm) {}
+void mul_fn(smvm *vm) {
+  i64 result = *vm->pointers[1] * *vm->pointers[2];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
+void mulu_fn(smvm *vm) {
+  u64 result = *(u64 *)vm->pointers[1] * *(u64 *)vm->pointers[2];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
 void mulf_fn(smvm *vm) {}
-void div_fn(smvm *vm) {}
-void divu_fn(smvm *vm) {}
+void div_fn(smvm *vm) {
+  i64 result = *vm->pointers[1] / *vm->pointers[2];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
+void divu_fn(smvm *vm) {
+  u64 result = *(u64 *)vm->pointers[1] / *(u64 *)vm->pointers[2];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
 void divf_fn(smvm *vm) {}
 void inc_fn(smvm *vm) {}
-void dec_fn(smvm *vm) {}
+void dec_fn(smvm *vm) {
+  u64 op = *vm->pointers[0];
+  op = op - 1;
+  mov_mem((u8 *)vm->pointers[0], (u8 *)&op, vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
+
 void and_fn(smvm *vm) {}
 void or_fn(smvm *vm) {}
 void xor_fn(smvm *vm) {}
@@ -249,26 +284,49 @@ void shli_fn(smvm *vm) {}
 void shri_fn(smvm *vm) {}
 void slc_fn(smvm *vm) {}
 void src_fn(smvm *vm) {}
-void jmp_fn(smvm *vm) {}
-void je_fn(smvm *vm) {}
-void jne_fn(smvm *vm) {}
+void jmp_fn(smvm *vm) {
+  vm->registers[reg_ip] = 0;
+  mov_mem((u8 *)&vm->registers[reg_ip], (u8 *)vm->pointers[0], vm->widths[0]);
+}
+void je_fn(smvm *vm) {
+  if (*vm->pointers[0] != *vm->pointers[1]) {
+    smvm_ip_inc(vm, 1);
+    return;
+  }  // else
+  vm->registers[reg_ip] = 0;
+  mov_mem((u8 *)&vm->registers[reg_ip], (u8 *)vm->pointers[2], vm->widths[2]);
+}
+void jne_fn(smvm *vm) {
+  u64 left, right;
+  mov_mem((u8 *)&left, (u8 *)vm->pointers[0], vm->widths[0]);
+  mov_mem((u8 *)&right, (u8 *)vm->pointers[1], vm->widths[1]);
+  if (left == right) {
+    smvm_ip_inc(vm, vm->offset);
+    return;
+  }  // else
+  vm->registers[reg_ip] = 0;
+  mov_mem((u8 *)&vm->registers[reg_ip], (u8 *)vm->pointers[2], vm->widths[2]);
+}
 void jl_fn(smvm *vm) {}
 void loop_fn(smvm *vm) {}
 void call_fn(smvm *vm) {}
-void proc_fn(smvm *vm) {}
-void start_fn(smvm *vm) {}
 void return_fn(smvm *vm) {}
 void push_fn(smvm *vm) {}
 void pop_fn(smvm *vm) {}
-void printi_fn(smvm *vm) {}
-void printu_fn(smvm *vm) {
+void puti_fn(smvm *vm) {
+  i64 data;
+  mov_mem((u8 *)&data, (u8 *)vm->pointers[0], vm->widths[0]);
+  printf("%li\n", data);
+  smvm_ip_inc(vm, vm->offset);
+}
+void putu_fn(smvm *vm) {
   u64 data;
   mov_mem((u8 *)&data, (u8 *)vm->pointers[0], vm->widths[0]);
   printf("%lu\n", data);
   smvm_ip_inc(vm, vm->offset);
 }
-void printf_fn(smvm *vm) {}
-void prints_fn(smvm *vm) {}
+void putf_fn(smvm *vm) {}
+void puts_fn(smvm *vm) {}
 
 // TODO, implement hashing or something
 typedef struct instruction_info {
@@ -312,15 +370,13 @@ instruction_info instruction_table[] = {
     [op_jl] = {"jl", 2, 3, jl_fn},
     [op_loop] = {"loop", 4, 2, loop_fn},
     [op_call] = {"call", 4, 1, call_fn},
-    [op_proc] = {"proc", 4, 1, proc_fn},
-    [op_start] = {"start", 5, 0, start_fn},
     [op_return] = {"return", 6, 0, return_fn},
     [op_push] = {"push", 4, 1, push_fn},
     [op_pop] = {"pop", 3, 1, pop_fn},
-    [op_printi] = {"printi", 6, 1, printi_fn},
-    [op_printu] = {"printu", 6, 1, printu_fn},
-    [op_printf] = {"printf", 6, 1, printf_fn},
-    [op_prints] = {"prints", 6, 1, prints_fn}};
+    [op_printi] = {"printi", 6, 1, puti_fn},
+    [op_printu] = {"printu", 6, 1, putu_fn},
+    [op_printf] = {"printf", 6, 1, putf_fn},
+    [op_prints] = {"prints", 6, 1, puts_fn}};
 
 #define instruction_table_len \
   (sizeof(instruction_table) / sizeof(*instruction_table))
@@ -396,8 +452,14 @@ void smvm_free(smvm *vm) {
 
 /*** vm - assembler ***/
 
-// TODO, proper assembler
-// typedef struct asmv {} asmv;
+// TODO, proper assembler - use struct asmv
+typedef struct asmv {
+  char *code;
+  listmv instructions;
+  listmv label_refs;
+  listmv label_addrs;
+  u64 index;
+} asmv;
 
 // these are only lexical errors i.e. errors like zero division error,
 // labelling error aren't handled
@@ -413,12 +475,13 @@ typedef enum asmv_error {
 typedef struct asmv_operand {
   smvm_mode mode;
   enum asmv_operand_type {
-    asmv_reg,
-    asmv_num,
-    asmv_unum,
-    asmv_fnum,
-    asmv_str,
-    asmv_chr,
+    asmv_reg_type,
+    asmv_num_type,
+    asmv_unum_type,
+    asmv_fnum_type,
+    asmv_str_type,
+    asmv_chr_type,
+    asmv_label_type,
   } type;
   smvm_data_width width : 4;
   smvm_data_width size : 4;
@@ -442,7 +505,21 @@ typedef struct asmv_inst {
   asmv_error error;
 } asmv_inst;
 
-static u8 parse_register(char **code) {
+typedef struct asmv_label {
+  listmv str;
+  u64 address;
+} asmv_label;
+
+typedef struct label_reference {
+  u64 inst_index;
+  u8 op_index;
+} label_reference;
+
+static inline u64 asmv_current(asmv *a) { return a->index; }
+static inline u64 asmv_peek(asmv *a) { return a->index + 1; }
+static inline u64 asmv_next(asmv *a) { return ++a->index; }
+
+static u8 asmv_parse_register(char **code) {
   char *backup = *code;
 
   if (**code == 'i' && (*code)[1] == 'p' && !isalnum((*code)[2])) {
@@ -498,15 +575,24 @@ static u64 parse_number(char **code) {
 static asmv_inst smvm_lex_inst(char **code) {
   char buffer[512];
   u64 index = 0;
-  asmv_operand op;
+  asmv_operand op = {0};
   asmv_inst inst = {.error = asmv_all_ok, .eof = false, .label = false};
 
   while (isspace(**code)) (*code)++;
-
   if (**code == '\0') return ((asmv_inst){.eof = true});
-
-  // TODO label
-  if (**code == '.') return (asmv_inst){.label = true};
+  // label
+  if (**code == '.') {
+    (*code)++;
+    index = 0;
+    while (isalnum((*code)[index])) index++;
+    char eof = '\0';
+    listmv_init(&inst.str, sizeof(char));
+    listmv_push_array(&inst.str, *code, index);
+    listmv_push(&inst.str, &eof);
+    *code += index;
+    inst.label = true;
+    return inst;
+  }
 
   if (!isalpha(**code)) return (asmv_inst){.error = asmv_misc_error};
 
@@ -539,16 +625,16 @@ static asmv_inst smvm_lex_inst(char **code) {
         op.mode = mode_immediate;
         u64 num = parse_number(code);
         if (discriminator == 'u') {
-          op.type = asmv_unum;
+          op.type = asmv_unum_type;
           op.num = num;
           op.size = min_space_neededu(op.num);
         } else if (discriminator == 'f') {
           // TODO, floating point numbers
-          op.type = asmv_fnum;
+          op.type = asmv_fnum_type;
           // op.num = 0;  // TODO;
           op.size = min_space_needed(op.num);
         } else {
-          op.type = asmv_num;
+          op.type = asmv_num_type;
           op.unum = *(i64 *)&num;
           op.size = min_space_needed(op.num);
         }
@@ -559,6 +645,7 @@ static asmv_inst smvm_lex_inst(char **code) {
           // if number, direct addressing mode
           // we don't check for - here since addresses are non-negative
           op.mode = mode_direct;
+          op.type = asmv_reg_type;
           op.unum = parse_number(code);
           op.size = min_space_neededu(op.unum);
           if (**code == '>') {
@@ -582,7 +669,7 @@ static asmv_inst smvm_lex_inst(char **code) {
         } else if (**code == 'r') {
           // else if register, indirect addressing mode
           (*code)++;
-          smvm_register reg = parse_register(code);
+          smvm_register reg = asmv_parse_register(code);
           // TODO handle reg_none better
           if (reg == reg_none) break;
           op.mode = mode_indirect;
@@ -593,7 +680,7 @@ static asmv_inst smvm_lex_inst(char **code) {
         }
       } else if (**code == 'r') {
         (*code)++;
-        smvm_register reg = parse_register(code);  // gives width|reg
+        smvm_register reg = asmv_parse_register(code);  // gives width|reg
         // TODO handle reg_none better mayhaps
         // time will tell
         if (reg == reg_none) continue;
@@ -606,13 +693,18 @@ static asmv_inst smvm_lex_inst(char **code) {
         index = 0;
         while (*(*code + index) != '"') i++;
         //  TODO matching strings
-      } else if (**code == '.' && isalpha((*code)[1])) {
+      } else if (**code == '.') {
         // match for labels
         (*code)++;
-        while (isalnum(**code)) (*code)++;
-        // TODO, save label
-        // op.mode = mode_direct;
-        // listmv_init(&op.str, sizeof(char));
+        index = 0;
+        while (isalnum((*code)[index])) index++;
+        op.type = asmv_label_type;
+        op.mode = mode_immediate;
+        char eof = '\0';
+        listmv_init(&op.str, sizeof(char));
+        listmv_push_array(&op.str, *code, index);
+        listmv_push(&op.str, &eof);
+        *code += index;
       } else {
         // TODO edge cases, error handling
       }
@@ -624,9 +716,71 @@ static asmv_inst smvm_lex_inst(char **code) {
 }
 
 void smvm_assemble(smvm *vm, char *code, bool cache) {
+  asmv assembler;
+  u64 offset = 0;  // track offset
+
+  assembler.code = code;
+  listmv_init(&assembler.instructions, sizeof(asmv_inst));
+  listmv_init(&assembler.label_addrs, sizeof(asmv_label));
+  listmv_init(&assembler.label_refs, sizeof(label_reference));
+
+  // first pass
   while (*code != '\0') {
     asmv_inst inst = smvm_lex_inst(&code);
     if (inst.eof) break;
+    if (!inst.label) {
+      offset += instruction_table[inst.code].num_ops == 3 ? 4 : 3;
+      for (int i = 0; i < instruction_table[inst.code].num_ops; i++) {
+        // TODO efficiency for storing labels
+        if (inst.operands[i].type == asmv_label_type) offset += 8;
+        if (inst.operands[i].mode > 1) offset += 1 << inst.operands[i].size;
+      }
+    } else {
+      asmv_label label = {.address = offset, .str = inst.str};
+      listmv_push(&assembler.label_addrs, &label);
+    }
+
+    listmv_push(&assembler.instructions, &inst);
+    asmv_inst *inst_ref =
+        listmv_at(&assembler.instructions, assembler.instructions.len - 1);
+
+    for (int i = 0; i < instruction_table[inst.code].num_ops; i++)
+      if (inst_ref->operands[i].type == asmv_label_type) {
+        label_reference ref = {assembler.instructions.len - 1, i};
+        listmv_push(&assembler.label_refs, &ref);
+      }
+  }
+
+  // check labels
+  for (int i = 0; i < assembler.label_addrs.len; i++) {
+    asmv_label label = *(asmv_label *)listmv_at(&assembler.label_addrs, i);
+    bool matched = false;
+    for (int j = 0; j < assembler.label_refs.len; j++) {
+      label_reference *ref = listmv_at(&assembler.label_refs, j);
+      asmv_inst *inst = listmv_at(&assembler.instructions, ref->inst_index);
+      asmv_operand *op = &inst->operands[ref->op_index];
+      if (op->str.data && !strcmp(label.str.data, op->str.data)) {
+        listmv_free(&op->str);
+        op->mode = mode_immediate;
+        op->unum = label.address;
+        op->width = smvm_reg64;
+        op->size = smvm_reg64;
+        matched = true;
+        break;
+      }
+    }
+    if (matched) continue;
+    // else there's an error (TODO)
+  }
+
+  // second pass
+  for (int i = 0; i < assembler.instructions.len; i++) {
+    asmv_inst inst = *(asmv_inst *)listmv_at(&assembler.instructions, i);
+    if (inst.eof) break;
+    if (inst.label) {
+      listmv_free(&inst.str);
+      continue;
+    }
     if (inst.error != asmv_all_ok) {
       // TODO, better error handling?
       printf("error in assembling: %d\n", inst.error);
@@ -641,7 +795,7 @@ void smvm_assemble(smvm *vm, char *code, bool cache) {
     }
 
     u8 primary_bytes[4] = {inst.code, 0, 0, 0};
-    u8 primary_size = 4;
+    // u8 primary_size = 4;
     u8 immediate_bytes[24] = {0};  // data/address bytes
     u64 immediate_size = 0;
 
@@ -660,16 +814,18 @@ void smvm_assemble(smvm *vm, char *code, bool cache) {
         primary_bytes[byte] |= op.size << offset;
         u8 data_size = 1 << op.size;  // ranges from 1 to 8
         immediate_size += data_size;
-        for (int n = 0; n < data_size; n++) {
+        for (int n = 0; n < data_size; n++)
           immediate_bytes[immediate_size - n - 1] = (op.num >> (n * 8)) & 0xff;
-        }
       }
     }
 
     listmv_push_array(&vm->bytecode, primary_bytes, num_ops == 3 ? 4 : 3);
-
     listmv_push_array(&vm->bytecode, immediate_bytes, immediate_size);
   }
+
+  listmv_free(&assembler.instructions);
+  listmv_free(&assembler.label_refs);
+  listmv_free(&assembler.label_addrs);
 }
 
 /* vm - helpers - implementation */
@@ -701,11 +857,11 @@ void listmv_init(listmv *ls, long size) {
 void listmv_push(listmv *ls, void *data) {
   if (ls->len >= ls->cap) {
     ls->cap *= 2;
-    ls->data = realloc(ls->data, ls->cap * ls->size);
-    if (ls->data == NULL) {
-      fprintf(stderr, "Memory reallocation failed in growing memory/stack.\n");
-      exit(1);
-    }
+  }
+  ls->data = realloc(ls->data, ls->cap * ls->size);
+  if (ls->data == NULL) {
+    fprintf(stderr, "Memory reallocation failed in growing memory/stack.\n");
+    exit(1);
   }
   memcpy((char *)ls->data + ls->len * ls->size, data, ls->size);
   ls->len++;
@@ -714,7 +870,7 @@ void listmv_push(listmv *ls, void *data) {
 void listmv_push_array(listmv *ls, void *data, size_t num) {
   while (ls->len + num >= ls->cap) {
     ls->cap *= 2;
-    ls->data = realloc(ls->data, ls->cap * ls->size);
+    ls->data = realloc((char *)ls->data, ls->cap * ls->size);
     if (ls->data == NULL) {
       fprintf(stderr, "Memory reallocation failed in growing memory/stack.\n");
       exit(1);
