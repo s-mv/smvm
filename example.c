@@ -7,7 +7,7 @@ char *readfile(const char *fname);
 
 int main() {
   smvm vm;
-  char *content = readfile("example.asmv");
+  char *content = readfile("examples/helloworld.asmv");
   smvm_init(&vm);
   smvm_assemble(&vm, content, true);
   smvm_execute(&vm);
