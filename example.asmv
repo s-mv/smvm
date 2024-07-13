@@ -1,6 +1,19 @@
-call .fn
+puts "Star shit generator!\n"
+puts "Enter a number!\n"
+getu ra
+call .starshit
 halt
 
-.fn
-    putu 69
+.starshit
+    inc  ra
+    mov  rb 1
+    .colloop
+        mov rc rb
+        .rowloop
+            puts "*"
+            dec  rc
+            jne  rc 0 .rowloop
+        puts "\n"
+        inc  rb
+        jne  rb ra .colloop
     ret
