@@ -1,10 +1,10 @@
-puts "Star shit generator!\n"
+puts "Star generator!\n"
 puts "Enter a number!\n"
 getu ra
-call .starshit
+call .star
 halt
 
-.starshit
+.star
     inc  ra
     mov  rb 1
     .colloop

@@ -35,7 +35,17 @@ void *listmv_pop_array(listmv *ls, u64 num);
 void listmv_grow(listmv *ls, u64 new_cap);
 void *listmv_at(listmv *ls, u64 index);
 void listmv_free(listmv *ls);
-// just a helper
+i64 parse_signed(u64 unum, u8 width) {
+  i64 result;
+  u64 mask = (1ull << (width * 8)) - 1;
+  u64 sign_bit = 1ull << ((width * 8) - 1);
+
+  unum &= mask;
+  if (unum & sign_bit) result = (i64)(unum | ~mask);
+  else result = (i64)unum;
+  return result;
+}
+// just a helper for better debugging
 static void print_memory(void *arr, int num);
 
 /* util - inline functions */
@@ -72,46 +82,48 @@ typedef struct smvm {
 typedef enum smvm_opcode {
   op_halt = 0b000000,
   op_mov = 0b000001,
-  op_swap = 0b000010,
-  op_lea = 0b000011,
-  op_add = 0b000100,
-  op_addu = 0b000101,
-  op_addf = 0b000110,
-  op_sub = 0b000111,
-  op_subu = 0b001000,
-  op_subf = 0b001001,
-  op_mul = 0b001010,
-  op_mulu = 0b001011,
-  op_mulf = 0b001100,
-  op_div = 0b001101,
-  op_divu = 0b001110,
-  op_divf = 0b001111,
-  op_inc = 0b010000,
-  op_dec = 0b010001,
-  op_and = 0b010010,
-  op_or = 0b010011,
-  op_xor = 0b010100,
-  op_shl = 0b010101,
-  op_shr = 0b010110,
-  op_shli = 0b010111,
-  op_shri = 0b011000,
-  op_slc = 0b011001,
-  op_src = 0b011010,
-  op_jmp = 0b011011,
-  op_je = 0b011100,
-  op_jne = 0b011101,
-  op_jl = 0b011110,
-  op_loop = 0b011111,
-  op_call = 0b100000,
-  op_ret = 0b100001,
-  op_push = 0b100010,
-  op_pop = 0b100011,
-  op_sys = 0b100100,
-  op_getu = 0b100101,
-  op_puti = 0b100110,
-  op_putu = 0b100111,
-  op_putf = 0b101000,
-  op_puts = 0b101001
+  op_movu = 0b000010,
+  op_movf = 0b000011,
+  op_swap = 0b000100,
+  op_lea = 0b000101,
+  op_add = 0b000110,
+  op_addu = 0b000111,
+  op_addf = 0b001000,
+  op_sub = 0b001001,
+  op_subu = 0b001010,
+  op_subf = 0b001011,
+  op_mul = 0b001100,
+  op_mulu = 0b001101,
+  op_mulf = 0b001110,
+  op_div = 0b001111,
+  op_divu = 0b10000,
+  op_divf = 0b10001,
+  op_inc = 0b10010,
+  op_dec = 0b10011,
+  op_and = 0b10100,
+  op_or = 0b10101,
+  op_xor = 0b10110,
+  op_shl = 0b10111,
+  op_shr = 0b11000,
+  op_shli = 0b11001,
+  op_shri = 0b11010,
+  op_slc = 0b11011,
+  op_src = 0b11100,
+  op_jmp = 0b11101,
+  op_je = 0b11110,
+  op_jne = 0b11111,
+  op_jl = 0b100000,
+  op_loop = 0b100001,
+  op_call = 0b100010,
+  op_ret = 0b100011,
+  op_push = 0b100100,
+  op_pop = 0b100101,
+  op_sys = 0b100110,
+  op_getu = 0b100111,
+  op_puti = 0b101000,
+  op_putu = 0b101001,
+  op_putf = 0b101010,
+  op_puts = 0b101011,
 } smvm_opcode;
 
 typedef enum smvm_register {
@@ -206,6 +218,8 @@ static inline void smvm_reset_flag(smvm *vm, smvm_flag flag) {
 // something...
 void trap_fn(smvm *vm);
 void mov_fn(smvm *vm);
+void movu_fn(smvm *vm);
+void movf_fn(smvm *vm);
 void swap_fn(smvm *vm);
 void lea_fn(smvm *vm);
 void add_fn(smvm *vm);
@@ -257,6 +271,7 @@ typedef struct instruction_info {
 
 instruction_info instruction_table[] = {
     [op_halt] = {"halt", 4, 0, trap_fn}, [op_mov] = {"mov", 3, 2, mov_fn},
+    [op_movu] = {"movu", 4, 2, movu_fn}, [op_movf] = {"movf", 4, 2, movf_fn},
     [op_swap] = {"swap", 4, 2, swap_fn}, [op_lea] = {"lea", 3, 2, lea_fn},
     [op_addu] = {"addu", 4, 3, addu_fn}, [op_addf] = {"addf", 4, 3, addf_fn},
     [op_add] = {"add", 3, 3, add_fn},    [op_subu] = {"subu", 4, 3, subu_fn},
@@ -402,8 +417,7 @@ void smvm_execute(smvm *vm) {
             vm->data[i] = 0;
             if (vm->little_endian)
               mov_mem_reverse((u8 *)(&vm->data[i]), inst + offset, size);
-            else
-              mov_mem((u8 *)(&vm->data[i]), inst + offset, size);
+            else mov_mem((u8 *)(&vm->data[i]), inst + offset, size);
             offset += size;
             vm->pointers[i] = &vm->data[i];
             break;
@@ -488,7 +502,7 @@ static asmv_op_data parse_number(char **code) {
   asmv_op_data data;
   if (neg) {
     data.type = asmv_num_type;
-    data.num = num;
+    data.num = -num;
   } else {
     data.type = asmv_unum_type;
     data.unum = num;
@@ -556,11 +570,12 @@ static asmv_inst smvm_lex_inst(char **code) {
         op.data = data;
         if (data.type == asmv_num_type) {
           op.size = min_space_needed(op.data.num);
-          u8 n = 1 << op.size;
-          op.data.num = (op.data.num << (64 - n)) >> (64 - n);
+          if (op.size != smvm_reg64)
+            op.data.num = op.data.num & ((1ull << (8 << op.size)) - 1);
         } else if (data.type == asmv_unum_type) {
           op.size = min_space_neededu(op.data.num);
         }
+        op.width = op.size;
         // TODO, floating point numbers
       } else if (**code == '@') {
         (*code)++;
@@ -586,8 +601,7 @@ static asmv_inst smvm_lex_inst(char **code) {
               op.width = smvm_reg8;
               (*code)++;
             }
-          } else
-            op.width = smvm_reg64;
+          } else op.width = smvm_reg64;
 
         } else if (**code == 'r') {
           // else if register, indirect addressing mode
@@ -672,14 +686,12 @@ void smvm_assemble(smvm *vm, char *code, bool cache) {
     asmv_inst inst = smvm_lex_inst(&code);
     if (inst.eof) break;
     if (!inst.label) {
-      if (instruction_table[inst.code].num_ops == 0)
-        offset++;
+      if (instruction_table[inst.code].num_ops == 0) offset++;
       else {
         offset += instruction_table[inst.code].num_ops == 3 ? 4 : 3;
         for (int i = 0; i < instruction_table[inst.code].num_ops; i++) {
           // TODO efficiency for storing labels
-          if (inst.operands[i].data.type == asmv_label_type)
-            offset += 8;
+          if (inst.operands[i].data.type == asmv_label_type) offset += 8;
           else if (inst.operands[i].data.type == asmv_str_type)
             offset += inst.operands[i].data.str.len;
           else if (inst.operands[i].mode > 1)
@@ -791,6 +803,14 @@ void smvm_assemble(smvm *vm, char *code, bool cache) {
 
 void trap_fn(smvm *vm) { smvm_set_flag(vm, flag_t); }
 void mov_fn(smvm *vm) {
+  mov_mem((u8 *)vm->pointers[0], (u8 *)vm->pointers[1], vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
+void movu_fn(smvm *vm) {
+  mov_mem((u8 *)vm->pointers[0], (u8 *)vm->pointers[1], vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
+void movf_fn(smvm *vm) {
   mov_mem((u8 *)vm->pointers[0], (u8 *)vm->pointers[1], vm->widths[0]);
   smvm_ip_inc(vm, vm->offset);
 }
@@ -924,8 +944,7 @@ void getu_fn(smvm *vm) {
   smvm_ip_inc(vm, vm->offset);
 }
 void puti_fn(smvm *vm) {
-  i64 data;
-  mov_mem((u8 *)&data, (u8 *)vm->pointers[0], vm->widths[0]);
+  i64 data = parse_signed(*vm->pointers[0], vm->widths[0]);
   printf("%li\n", data);
   smvm_ip_inc(vm, vm->offset);
 }
@@ -1038,10 +1057,8 @@ static void print_memory(void *arr, int num) {
     unsigned char byte = p[i];
     for (int j = 7; j >= 0; j--) {
       printf("%d", (byte >> j) & 0x01);
-      if (j % 8 == 0)
-        printf("|");
-      else if (j % 4 == 0)
-        printf(" ");
+      if (j % 8 == 0) printf("|");
+      else if (j % 4 == 0) printf(" ");
     }
   }
   printf("\n");

@@ -1,2 +1,2 @@
-mov ra -6
-puti ra
+puti -12
+halt
