@@ -15,8 +15,8 @@ However the bytecode has a _direction_ of data, as shown below:
 `opcode -> mode bits and width bits -> register bits -> data`
 
 1. The opcode takes 6 bits.
-2. The mode bits consistitute of 3, 2-bit pairs. Each pair corresponds to one
-operand.
+2. The mode bits consistitute of 3, 3-bit groups. Each group corresponds to
+one operand.
 3. The width bits constitute of 3, 2-bit pairs. Each pair, again, is tied to
 one operand.
 
@@ -26,16 +26,17 @@ Registers are enumerated by 3 bits.
 This is how bytecode for a large instruction typically ends up looking:
 ```
 +--------+ +--------+ +--------+ +--------+ +--- ...
-|22111111| |22333333| |22555444| |     666| | data ...
+|22111111| |22333333| |22555444| |  222666| | data ...
 +--------+ +--------+ +--------+ +--------+ +--- ...
 ```
 1. opcode
-2. mode bits (0x = needs register, 1x = needs data)
+2. mode bits (0xx = doesn't need data, 1xx = needs data)
 3. width bits
 4. register x (or in case of direct mode, data size)
 5. register y
 6. register z
-Followed by data if any. The last byte is only included for modes that require it.
+Followed by data if any.
+The last byte is only included for modes that require it.
 
 For conevience here's the layout for bytecode for instructions with 3, 2, and
 1 register-sized operand.
