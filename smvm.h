@@ -400,7 +400,6 @@ static void dsmv_disassemble();
 /*** vm - disassembler (dsmv) - implementation ***/
 
 static void dsmv_init(dsmv *ds) {
-  listmv_init(&ds->bytecode, sizeof(u8));
   listmv_init(&ds->code, sizeof(char));
   ds->index = 0;
 }
@@ -437,6 +436,7 @@ void smvm_assemble(smvm *vm, char *code) {
   asmv_init(&assembler);
   assembler.code = code;
   asmv_assemble(&assembler);
+  if (vm->bytecode.data != NULL) listmv_free(&vm->bytecode);
   vm->bytecode = assembler.bytecode;  // ownership to vm
   asmv_free(&assembler);
 }
@@ -506,7 +506,7 @@ void smvm_disassemble(smvm *vm, char *code) {
   dsmv_init(&dis);
   dis.bytecode = vm->bytecode;
   dsmv_disassemble();
-  code = malloc(dis.code.len);
+  // code = malloc(dis.code.len);
   strncpy(code, (char *)dis.code.data, dis.code.len);
   dsmv_free(&dis);
 }
@@ -604,16 +604,17 @@ static asmv_inst asmv_lex_inst(asmv *as) {
   // ignore comments
   if (current == ';' || current == '#')
     while (asmv_next(as) != '\n');
+  while (isspace(asmv_current(as))) asmv_skip(as);
   current = asmv_current(as);
   if (current == '\0') return ((asmv_inst){.eof = true});
   // label
   if (current == '.') {
     asmv_skip(as);
     offset = 0;
-    while (isalnum(as->code[as->index])) asmv_skip(as);
+    while (isalnum(as->code[as->index + offset])) offset++;
     char eof = '\0';
     listmv_init(&inst.str, sizeof(char));
-    listmv_push_array(&inst.str, as->code, as->index);
+    listmv_push_array(&inst.str, as->code + as->index, offset);
     listmv_push(&inst.str, &eof);
     inst.label = true;
     inst.index = as->index;
@@ -742,7 +743,7 @@ static asmv_inst asmv_lex_inst(asmv *as) {
         op.mode = mode_immediate;
         char eof = '\0';
         listmv_init(&op.data.str, sizeof(char));
-        listmv_push_array(&op.data.str, as->code, offset);
+        listmv_push_array(&op.data.str, as->code + as->index, offset);
         listmv_push(&op.data.str, &eof);
         as->code += offset;
       } else {
@@ -993,7 +994,7 @@ void je_fn(smvm *vm) {
   mov_mem((u8 *)&vm->registers[reg_ip], (u8 *)vm->pointers[2], vm->widths[2]);
 }
 void jne_fn(smvm *vm) {
-  u64 left, right;
+  i64 left = 0, right = 0;
   mov_mem((u8 *)&left, (u8 *)vm->pointers[0], vm->widths[0]);
   mov_mem((u8 *)&right, (u8 *)vm->pointers[1], vm->widths[1]);
   if (left == right) {
@@ -1043,6 +1044,7 @@ void puts_fn(smvm *vm) {
   while (str[len] != '\0') len++;
   len++;
   printf("%s", str);
+  fflush(stdout);
   smvm_ip_inc(vm, len);
 }
 

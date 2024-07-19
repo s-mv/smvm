@@ -8,7 +8,7 @@ halt
     inc  ra
     mov  rb 1
     .colloop
-        mov rc rb
+        mov  rc rb
         .rowloop
             puts "*"
             dec  rc

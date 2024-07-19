@@ -1,2 +1,6 @@
-puts "Hello, world!\n"
-halt
+    call .hello
+    halt
+
+.hello
+    puts "Hello, world!\n"
+    ret

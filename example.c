@@ -5,15 +5,17 @@
 
 char *readfile(const char *fname);
 
-int main() {
+int main(int argc, char **argv) {
   smvm vm;
-  char *content = readfile("test.asmv");
+  char *content;
   char *output;
+  if (argc > 1) content = readfile(argv[1]);
+  else content = readfile("test.asmv");
   smvm_init(&vm);
   smvm_assemble(&vm, content);
-  // smvm_execute(&vm); // temporarily commented out
-  smvm_disassemble(&vm, output);
-  printf("OUTPUT\n---\n%s\n---\n", output);
+  smvm_execute(&vm);  // temporarily commented out
+  // smvm_disassemble(&vm, output);
+  printf("\n---\nOUTPUT\n---\n---\n");
   free(content);
   free(output);
   smvm_free(&vm);
