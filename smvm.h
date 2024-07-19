@@ -27,6 +27,8 @@ typedef struct listmv {
   long size;
 } listmv;
 
+#define listmv(_type) listmv
+
 void listmv_init(listmv *ls, long size);
 void listmv_push(listmv *ls, void *data);
 void listmv_push_array(listmv *ls, void *data, size_t num);
@@ -118,7 +120,7 @@ typedef enum smvm_opcode {
   op_ret = 0b100011,
   op_push = 0b100100,
   op_pop = 0b100101,
-  op_sys = 0b100110,
+  op_scall = 0b100110,
   op_getu = 0b100111,
   op_puti = 0b101000,
   op_putu = 0b101001,
@@ -164,7 +166,7 @@ typedef enum smvm_mode {
 } smvm_mode;
 
 void smvm_init(smvm *vm);
-void smvm_assemble(smvm *vm, char *code, bool cache);
+void smvm_assemble(smvm *vm, char *code);
 void smvm_execute(smvm *vm);
 void smvm_free(smvm *vm);
 
@@ -270,45 +272,45 @@ typedef struct instruction_info {
 } instruction_info;
 
 instruction_info instruction_table[] = {
-    [op_halt] = {"halt", 4, 0, trap_fn}, [op_mov] = {"mov", 3, 2, mov_fn},
-    [op_movu] = {"movu", 4, 2, movu_fn}, [op_movf] = {"movf", 4, 2, movf_fn},
-    [op_swap] = {"swap", 4, 2, swap_fn}, [op_lea] = {"lea", 3, 2, lea_fn},
-    [op_addu] = {"addu", 4, 3, addu_fn}, [op_addf] = {"addf", 4, 3, addf_fn},
-    [op_add] = {"add", 3, 3, add_fn},    [op_subu] = {"subu", 4, 3, subu_fn},
-    [op_subf] = {"subf", 4, 3, subf_fn}, [op_sub] = {"sub", 3, 3, sub_fn},
-    [op_mulu] = {"mulu", 4, 3, mulu_fn}, [op_mulf] = {"mulf", 4, 3, mulf_fn},
-    [op_mul] = {"mul", 3, 3, mul_fn},    [op_divu] = {"divu", 4, 3, divu_fn},
-    [op_divf] = {"divf", 4, 3, divf_fn}, [op_div] = {"div", 3, 3, div_fn},
-    [op_inc] = {"inc", 3, 1, inc_fn},    [op_dec] = {"dec", 3, 1, dec_fn},
-    [op_and] = {"and", 3, 3, and_fn},    [op_or] = {"or", 2, 3, or_fn},
-    [op_xor] = {"xor", 3, 3, xor_fn},    [op_shli] = {"shli", 4, 3, shli_fn},
-    [op_shl] = {"shl", 3, 3, shl_fn},    [op_shri] = {"shri", 4, 3, shri_fn},
-    [op_shr] = {"shr", 3, 3, shr_fn},    [op_slc] = {"slc", 3, 3, slc_fn},
-    [op_src] = {"src", 3, 3, src_fn},    [op_jmp] = {"jmp", 3, 1, jmp_fn},
-    [op_je] = {"je", 2, 3, je_fn},       [op_jne] = {"jne", 3, 3, jne_fn},
-    [op_jl] = {"jl", 2, 3, jl_fn},       [op_loop] = {"loop", 4, 2, loop_fn},
-    [op_call] = {"call", 4, 1, call_fn}, [op_ret] = {"ret", 3, 0, ret_fn},
-    [op_push] = {"push", 4, 1, push_fn}, [op_pop] = {"pop", 3, 1, pop_fn},
-    [op_sys] = {"sys", 3, 1, sys_fn},    [op_getu] = {"getu", 4, 1, getu_fn},
-    [op_puti] = {"puti", 4, 1, puti_fn}, [op_putu] = {"putu", 4, 1, putu_fn},
-    [op_putf] = {"putf", 4, 1, putf_fn}, [op_puts] = {"puts", 4, 1, puts_fn}};
+    [op_halt] = {"halt", 4, 0, trap_fn},  [op_mov] = {"mov", 3, 2, mov_fn},
+    [op_movu] = {"movu", 4, 2, movu_fn},  [op_movf] = {"movf", 4, 2, movf_fn},
+    [op_swap] = {"swap", 4, 2, swap_fn},  [op_lea] = {"lea", 3, 2, lea_fn},
+    [op_addu] = {"addu", 4, 3, addu_fn},  [op_addf] = {"addf", 4, 3, addf_fn},
+    [op_add] = {"add", 3, 3, add_fn},     [op_subu] = {"subu", 4, 3, subu_fn},
+    [op_subf] = {"subf", 4, 3, subf_fn},  [op_sub] = {"sub", 3, 3, sub_fn},
+    [op_mulu] = {"mulu", 4, 3, mulu_fn},  [op_mulf] = {"mulf", 4, 3, mulf_fn},
+    [op_mul] = {"mul", 3, 3, mul_fn},     [op_divu] = {"divu", 4, 3, divu_fn},
+    [op_divf] = {"divf", 4, 3, divf_fn},  [op_div] = {"div", 3, 3, div_fn},
+    [op_inc] = {"inc", 3, 1, inc_fn},     [op_dec] = {"dec", 3, 1, dec_fn},
+    [op_and] = {"and", 3, 3, and_fn},     [op_or] = {"or", 2, 3, or_fn},
+    [op_xor] = {"xor", 3, 3, xor_fn},     [op_shli] = {"shli", 4, 3, shli_fn},
+    [op_shl] = {"shl", 3, 3, shl_fn},     [op_shri] = {"shri", 4, 3, shri_fn},
+    [op_shr] = {"shr", 3, 3, shr_fn},     [op_slc] = {"slc", 3, 3, slc_fn},
+    [op_src] = {"src", 3, 3, src_fn},     [op_jmp] = {"jmp", 3, 1, jmp_fn},
+    [op_je] = {"je", 2, 3, je_fn},        [op_jne] = {"jne", 3, 3, jne_fn},
+    [op_jl] = {"jl", 2, 3, jl_fn},        [op_loop] = {"loop", 4, 2, loop_fn},
+    [op_call] = {"call", 4, 1, call_fn},  [op_ret] = {"ret", 3, 0, ret_fn},
+    [op_push] = {"push", 4, 1, push_fn},  [op_pop] = {"pop", 3, 1, pop_fn},
+    [op_scall] = {"scall", 5, 1, sys_fn}, [op_getu] = {"getu", 4, 1, getu_fn},
+    [op_puti] = {"puti", 4, 1, puti_fn},  [op_putu] = {"putu", 4, 1, putu_fn},
+    [op_putf] = {"putf", 4, 1, putf_fn},  [op_puts] = {"puts", 4, 1, puts_fn}};
 
 #define instruction_table_len \
   (sizeof(instruction_table) / sizeof(*instruction_table))
 
-/*** vm - assembler ***/
+/*** vm - assembler (asmv) ***/
 
-// TODO, proper assembler - use struct asmv
 typedef struct asmv {
-  char *code;
+  char *code;  // input
   listmv instructions;
   listmv label_refs;
   listmv label_addrs;
+  // output of type listmv(u8 *)
+  listmv bytecode;
   u64 index;
+  bool panic_mode;
 } asmv;
 
-// these are only lexical errors i.e. errors like zero division error,
-// labelling error aren't handled
 typedef enum asmv_error {
   asmv_all_ok = 0,
   asmv_incomplete_inst = 1,
@@ -353,6 +355,7 @@ typedef struct asmv_inst {
   bool eof : 1;
   bool label : 1;
   asmv_error error;
+  u64 index;
 } asmv_inst;
 
 typedef struct asmv_label {
@@ -364,6 +367,24 @@ typedef struct label_reference {
   u64 inst_index;
   u8 op_index;
 } label_reference;
+
+/* asmv - inline functions */
+static inline u64 asmv_current(asmv *a) { return a->code[a->index]; }
+static inline u64 asmv_peek(asmv *a) { return a->code[a->index + 1]; }
+static inline u64 asmv_peek2(asmv *a) { return a->code[a->index + 2]; }
+static inline u64 asmv_prev(asmv *a) { return a->code[a->index - 1]; }
+static inline u64 asmv_prev2(asmv *a) { return a->code[a->index - 2]; }
+static inline u64 asmv_next(asmv *a) { return a->code[++a->index]; }
+static inline void asmv_skip(asmv *a) { ++a->index; }
+
+/* asmv - function delcaration */
+static void asmv_init(asmv *as);
+static void asmv_assemble(asmv *as);
+static asmv_inst asmv_lex_inst(asmv *as);
+static void asmv_free(asmv *as);
+
+// helper functions
+static u8 asmv_parse_register(asmv *as);
 
 // this isn't even... remotely useful
 // but for the sake of some semblence of order, it exists now
@@ -377,6 +398,15 @@ void smvm_init(smvm *vm) {
   listmv_init(&vm->memory, sizeof(u8));
   listmv_init(&vm->stack, sizeof(u8));
   vm->little_endian = is_little_endian();
+}
+
+void smvm_assemble(smvm *vm, char *code) {
+  asmv assembler;
+  asmv_init(&assembler);
+  assembler.code = code;
+  asmv_assemble(&assembler);
+  vm->bytecode = assembler.bytecode;  // ownership to vm
+  asmv_free(&assembler);
 }
 
 // TODO error return type
@@ -440,64 +470,73 @@ void smvm_free(smvm *vm) {
 }
 
 /*** vm - assembler - implementation ***/
-/* inline functions */
-static inline u64 asmv_current(asmv *a) { return a->index; }
-static inline u64 asmv_peek(asmv *a) { return a->index + 1; }
-static inline u64 asmv_next(asmv *a) { return ++a->index; }
 
-static u8 asmv_parse_register(char **code) {
-  char *backup = *code;
+static void asmv_init(asmv *as) {
+  as->index = 0;
+  as->panic_mode = false;
+  listmv_init(&as->bytecode, sizeof(u8));
+  listmv_init(&as->instructions, sizeof(asmv_inst));
+  listmv_init(&as->label_addrs, sizeof(asmv_label));
+  listmv_init(&as->label_refs, sizeof(label_reference));
+}
 
-  if (**code == 'i' && (*code)[1] == 'p' && !isalnum((*code)[2])) {
-    *code += 2;
+static u8 asmv_parse_register(asmv *as) {
+  u64 backup_index = as->index;
+
+  if (asmv_current(as) == 'i' && asmv_peek(as) == 'p' &&
+      !isalnum(asmv_peek2(as))) {
+    as->index += 2;
     return (smvm_reg64 << 3) | reg_ip;
   }
 
-  if (**code == 's' && (*code)[1] == 'p' && !isalnum((*code)[2])) {
-    *code += 2;
+  if (asmv_current(as) == 's' && asmv_peek(as) == 'p' &&
+      !isalnum(asmv_peek2(as))) {
+    as->index += 2;
     return (smvm_reg64 << 3) | reg_sp;
   }
 
-  if (**code == 'a' || **code == 'b' || **code == 'c' || **code == 'd') {
-    (*code)++;
-    if (**code == '8') {
-      (*code)++;
-      return (smvm_reg8 << 3) | (reg_a + (*code)[-1] - 'a');
+  if (asmv_current(as) == 'a' || asmv_current(as) == 'b' ||
+      asmv_current(as) == 'c' || asmv_current(as) == 'd') {
+    asmv_skip(as);
+    if (asmv_current(as) == '8') {
+      asmv_skip(as);
+      return (smvm_reg8 << 3) | (reg_a + asmv_prev(as) - 'a');
     }
-    if (**code == '1' && (*code)[1] == '6') {
-      *code += 2;
-      return (smvm_reg16 << 3) | (reg_a + (*code)[-2] - 'a');
+    if (asmv_current(as) == '1' && asmv_peek(as) == '6') {
+      as->index += 2;
+      return (smvm_reg16 << 3) | (reg_a + asmv_prev2(as) - 'a');
     }
-    if (**code == '3' && (*code)[1] == '2') {
-      *code += 2;
-      return (smvm_reg32 << 3) | (reg_a + (*code)[-2] - 'a');
+    if (asmv_current(as) == '3' && asmv_peek(as) == '2') {
+      as->index += 2;
+      return (smvm_reg32 << 3) | (reg_a + asmv_prev2(as) - 'a');
     }
-    if (**code == '6' && (*code)[1] == '4') {
-      *code += 2;
-      return (smvm_reg64 << 3) | (reg_a + (*code)[-2] - 'a');
+    if (asmv_current(as) == '6' && asmv_peek(as) == '4') {
+      as->index += 2;
+      return (smvm_reg64 << 3) | (reg_a + asmv_prev2(as) - 'a');
     }
 
-    if (!isdigit(**code))
-      return (smvm_reg64 << 3) | (reg_a + (*code)[-1] - 'a');
+    if (!isdigit(asmv_current(as)))
+      return (smvm_reg64 << 3) | (reg_a + asmv_prev(as) - 'a');
   }
 
-  *code = backup;
+  as->index = backup_index;
   return reg_none;
 }
 
 // TODO, floating point numbers
-static asmv_op_data parse_number(char **code) {
+static asmv_op_data parse_number(asmv *as) {
   u64 num = 0;
   bool neg = false;
-  if (**code == '-') {
+  if (asmv_current(as) == '-') {
     neg = true;
-    (*code)++;
+    asmv_skip(as);
   }
 
-  while (isdigit(**code)) {
-    num = num * 10 + (**code - '0');
-    (*code)++;
-    if (**code == '_') (*code)++;  // something like 1_00_000 is valid
+  while (isdigit(asmv_current(as))) {
+    num = num * 10 + (asmv_current(as) - '0');
+    asmv_skip(as);
+    if (asmv_current(as) == '_')
+      asmv_skip(as);  // something like 1_00_000 is valid
   }
   asmv_op_data data;
   if (neg) {
@@ -511,38 +550,41 @@ static asmv_op_data parse_number(char **code) {
 }
 
 // I hate nesting
-static asmv_inst smvm_lex_inst(char **code) {
+static asmv_inst asmv_lex_inst(asmv *as) {
   char buffer[512];
-  u64 index = 0;
+  u64 offset = 0;
   asmv_operand op = {0};
   asmv_inst inst = {.error = asmv_all_ok, .eof = false, .label = false};
+  char current;
 
-  while (isspace(**code)) (*code)++;
+  while (isspace(asmv_current(as))) asmv_skip(as);
+  current = asmv_current(as);
   // ignore comments
-  if (**code == ';' || **code == '#')
-    while (**code != '\n') (*code)++;
-  if (**code == '\0') return ((asmv_inst){.eof = true});
-
+  if (current == ';' || current == '#')
+    while (asmv_next(as) != '\n');
+  current = asmv_current(as);
+  if (current == '\0') return ((asmv_inst){.eof = true});
   // label
-  if (**code == '.') {
-    (*code)++;
-    index = 0;
-    while (isalnum((*code)[index])) index++;
+  if (current == '.') {
+    asmv_skip(as);
+    offset = 0;
+    while (isalnum(as->code[as->index])) asmv_skip(as);
     char eof = '\0';
     listmv_init(&inst.str, sizeof(char));
-    listmv_push_array(&inst.str, *code, index);
+    listmv_push_array(&inst.str, as->code, as->index);
     listmv_push(&inst.str, &eof);
-    *code += index;
     inst.label = true;
+    inst.index = as->index;
+    as->index += offset;
     return inst;
   }
+  current = asmv_current(as);
+  if (!isalpha(current)) return (asmv_inst){.error = asmv_misc_error};
 
-  if (!isalpha(**code)) return (asmv_inst){.error = asmv_misc_error};
-
-  while (isalpha((*code)[index])) index++;
-  strncpy(buffer, *code, index);
-  buffer[index + 1] = '\0';
-  *code += index;
+  while (isalpha(as->code[as->index + offset])) offset++;
+  strncpy(buffer, as->code + as->index, offset);
+  buffer[offset + 1] = '\0';
+  as->index += offset;
 
   for (int i = 0; i < instruction_table_len; i++) {
     if (strncmp(instruction_table[i].name, buffer,
@@ -552,9 +594,10 @@ static asmv_inst smvm_lex_inst(char **code) {
     inst.code = i;
 
     for (int j = 0; j < instruction_table[i].num_ops; j++) {
-      while (isspace(**code)) (*code)++;
+      while (isspace(asmv_current(as))) asmv_skip(as);
+      current = asmv_current(as);
 
-      if (**code == '-' || isdigit(**code)) {
+      if (current == '-' || isdigit(current)) {
         // immediate mode, handle numbers
         // TODO: handle bases and .d+ (clashes with labels right now)
         // sub 12 b c makes no sense, 12 = b + c what??
@@ -562,11 +605,9 @@ static asmv_inst smvm_lex_inst(char **code) {
           return (asmv_inst){.error = asmv_immediate_x};
         // handle immediate addressing
         // either u or f, otherwise irrelevant
-        char discriminator =
-            instruction_table[i].name[instruction_table[i].str_size - 1];
 
         op.mode = mode_immediate;
-        asmv_op_data data = parse_number(code);
+        asmv_op_data data = parse_number(as);
         op.data = data;
         if (data.type == asmv_num_type) {
           op.size = min_space_needed(op.data.num);
@@ -577,36 +618,36 @@ static asmv_inst smvm_lex_inst(char **code) {
         }
         op.width = op.size;
         // TODO, floating point numbers
-      } else if (**code == '@') {
-        (*code)++;
-        while (isspace(**code)) (*code)++;
-        if (isdigit(**code)) {
+      } else if (current == '@') {
+        asmv_skip(as);
+        while (isspace(asmv_current(as))) asmv_skip(as);
+        if (isdigit(asmv_current(as))) {
           // if number, direct addressing mode
           // we don't check for - here since addresses are non-negative
           op.mode = mode_direct;
-          op.data = parse_number(code);
+          op.data = parse_number(as);
           op.size = min_space_neededu(op.data.unum);
-          if (**code == '>') {
-            (*code)++;
-            if (**code == '6' && (*code)[1] == '4') {
+          if (asmv_current(as) == '>') {
+            asmv_skip(as);
+            if (asmv_current(as) == '6' && asmv_peek(as) == '4') {
               op.width = smvm_reg64;
-              *code += 2;
-            } else if (**code == '3' && (*code)[1] == '2') {
+              as->index += 2;
+            } else if (asmv_current(as) == '3' && asmv_peek(as) == '2') {
               op.width = smvm_reg32;
-              *code += 2;
-            } else if (**code == '1' && (*code)[1] == '6') {
+              as->index += 2;
+            } else if (asmv_current(as) == '1' && asmv_peek(as) == '6') {
               op.width = smvm_reg16;
-              *code += 2;
-            } else if (**code == '8') {
+              as->index += 2;
+            } else if (asmv_current(as) == '8') {
               op.width = smvm_reg8;
-              (*code)++;
+              asmv_skip(as);
             }
           } else op.width = smvm_reg64;
 
-        } else if (**code == 'r') {
+        } else if (current == 'r') {
           // else if register, indirect addressing mode
-          (*code)++;
-          smvm_register reg = asmv_parse_register(code);
+          asmv_skip(as);
+          smvm_register reg = asmv_parse_register(as);
           // TODO handle reg_none better
           if (reg == reg_none) break;
           op.mode = mode_indirect;
@@ -615,53 +656,53 @@ static asmv_inst smvm_lex_inst(char **code) {
         } else {
           // TODO, handle error
         }
-      } else if (**code == 'r') {
-        (*code)++;
-        smvm_register reg = asmv_parse_register(code);  // gives width|reg
+      } else if (current == 'r') {
+        asmv_skip(as);
+        smvm_register reg = asmv_parse_register(as);  // gives width|reg
         // TODO handle reg_none better mayhaps
         // time will tell
         if (reg == reg_none) continue;
         op.mode = mode_register;
         op.width = reg >> 3;
         op.data.reg = reg & 0b111;
-      } else if (**code == '"' && inst.code == op_puts) {
-        (*code)++;
+      } else if (current == '"' && inst.code == op_puts) {
+        asmv_skip(as);
         listmv_init(&op.data.str, sizeof(char));
 
-        while (**code != '"') {
-          char c = **code;
+        while (asmv_current(as) != '"') {
+          current = asmv_current(as);
           // checks for `\n`, etc.
-          if (c == '\\' && *(*code + 1) != '\0') {
-            c = *++(*code);
-            switch (c) {
-              case 'n': c = '\n'; break;
-              case 't': c = '\t'; break;
-              case 'r': c = '\r'; break;
+          if (current == '\\' && asmv_peek(as) != '\0') {
+            current = asmv_next(as);
+            switch (current) {
+              case 'n': current = '\n'; break;
+              case 't': current = '\t'; break;
+              case 'r': current = '\r'; break;
               case '\\':
               case '"': break;
-              default: (*code)--; c = '\\';
+              default: as->index--; current = '\\';
             }
           }
-          listmv_push(&op.data.str, &c);
-          (*code)++;
+          listmv_push(&op.data.str, &current);
+          asmv_skip(as);
         }
 
         listmv_push(&op.data.str, &(char){'\0'});
 
         op.data.type = asmv_str_type;
         op.mode = mode_register;
-        (*code)++;
-      } else if (**code == '.') {  // handling labels
-        (*code)++;
-        index = 0;
-        while (isalnum((*code)[index])) index++;
+        asmv_skip(as);
+      } else if (current == '.') {  // handling labels
+        asmv_skip(as);
+        offset = 0;
+        while (isalnum(as->code[as->index + offset])) offset++;
         op.data.type = asmv_label_type;
         op.mode = mode_immediate;
         char eof = '\0';
         listmv_init(&op.data.str, sizeof(char));
-        listmv_push_array(&op.data.str, *code, index);
+        listmv_push_array(&op.data.str, as->code, offset);
         listmv_push(&op.data.str, &eof);
-        *code += index;
+        as->code += offset;
       } else {
         // TODO edge cases, error handling
       }
@@ -672,18 +713,12 @@ static asmv_inst smvm_lex_inst(char **code) {
   return inst;
 }
 
-void smvm_assemble(smvm *vm, char *code, bool cache) {
-  asmv assembler;
+static void asmv_assemble(asmv *as) {
   u64 offset = 0;  // track offset
 
-  assembler.code = code;
-  listmv_init(&assembler.instructions, sizeof(asmv_inst));
-  listmv_init(&assembler.label_addrs, sizeof(asmv_label));
-  listmv_init(&assembler.label_refs, sizeof(label_reference));
-
   // first pass
-  while (*code != '\0') {
-    asmv_inst inst = smvm_lex_inst(&code);
+  while (as->code[as->index] != '\0') {
+    asmv_inst inst = asmv_lex_inst(as);
     if (inst.eof) break;
     if (!inst.label) {
       if (instruction_table[inst.code].num_ops == 0) offset++;
@@ -700,27 +735,27 @@ void smvm_assemble(smvm *vm, char *code, bool cache) {
       }
     } else {
       asmv_label label = {.address = offset, .str = inst.str};
-      listmv_push(&assembler.label_addrs, &label);
+      listmv_push(&as->label_addrs, &label);
     }
 
-    listmv_push(&assembler.instructions, &inst);
+    listmv_push(&as->instructions, &inst);
     asmv_inst *inst_ref =
-        listmv_at(&assembler.instructions, assembler.instructions.len - 1);
+        listmv_at(&as->instructions, as->instructions.len - 1);
 
     for (int i = 0; i < instruction_table[inst.code].num_ops; i++)
       if (inst_ref->operands[i].data.type == asmv_label_type) {
-        label_reference ref = {assembler.instructions.len - 1, i};
-        listmv_push(&assembler.label_refs, &ref);
+        label_reference ref = {as->instructions.len - 1, i};
+        listmv_push(&as->label_refs, &ref);
       }
   }
 
   // check labels
-  for (int i = 0; i < assembler.label_addrs.len; i++) {
-    asmv_label label = *(asmv_label *)listmv_at(&assembler.label_addrs, i);
+  for (int i = 0; i < as->label_addrs.len; i++) {
+    asmv_label label = *(asmv_label *)listmv_at(&as->label_addrs, i);
     bool matched = false;
-    for (int j = 0; j < assembler.label_refs.len; j++) {
-      label_reference *ref = listmv_at(&assembler.label_refs, j);
-      asmv_inst *inst = listmv_at(&assembler.instructions, ref->inst_index);
+    for (int j = 0; j < as->label_refs.len; j++) {
+      label_reference *ref = listmv_at(&as->label_refs, j);
+      asmv_inst *inst = listmv_at(&as->instructions, ref->inst_index);
       asmv_operand *op = &inst->operands[ref->op_index];
       if (op->data.str.cap && !strcmp(label.str.data, op->data.str.data)) {
         listmv_free(&op->data.str);
@@ -736,8 +771,8 @@ void smvm_assemble(smvm *vm, char *code, bool cache) {
   }
 
   // second pass
-  for (int i = 0; i < assembler.instructions.len; i++) {
-    asmv_inst inst = *(asmv_inst *)listmv_at(&assembler.instructions, i);
+  for (int i = 0; i < as->instructions.len; i++) {
+    asmv_inst inst = *(asmv_inst *)listmv_at(&as->instructions, i);
     if (inst.eof) break;
     if (inst.label) {
       listmv_free(&inst.str);
@@ -752,7 +787,7 @@ void smvm_assemble(smvm *vm, char *code, bool cache) {
     const u8 num_ops = instruction_table[inst.code].num_ops;
 
     if (num_ops == 0) {
-      listmv_push(&vm->bytecode, &inst.code);
+      listmv_push(&as->bytecode, &inst.code);
       continue;
     }
 
@@ -784,19 +819,23 @@ void smvm_assemble(smvm *vm, char *code, bool cache) {
       }
     }
 
-    listmv_push_array(&vm->bytecode, primary_bytes, num_ops == 3 ? 4 : 3);
-    listmv_push_array(&vm->bytecode, immediate_bytes, immediate_size);
+    listmv_push_array(&as->bytecode, primary_bytes, num_ops == 3 ? 4 : 3);
+    listmv_push_array(&as->bytecode, immediate_bytes, immediate_size);
     for (int i = 0; i < num_ops; i++) {
       asmv_operand op = inst.operands[i];
       if (op.data.type != asmv_str_type) continue;
-      listmv_push_array(&vm->bytecode, op.data.str.data, op.data.str.len);
+      listmv_push_array(&as->bytecode, op.data.str.data, op.data.str.len);
       listmv_free(&op.data.str);
     }
   }
+}
 
-  listmv_free(&assembler.instructions);
-  listmv_free(&assembler.label_refs);
-  listmv_free(&assembler.label_addrs);
+static void asmv_free(asmv *as) {
+  listmv_free(&as->instructions);
+  listmv_free(&as->label_refs);
+  listmv_free(&as->label_addrs);
+  // bytecode is now owned by a vm
+  // so no need to free it
 }
 
 /* vm - opcode functions - implementation */

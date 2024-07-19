@@ -9,7 +9,7 @@ int main() {
   smvm vm;
   char *content = readfile("test.asmv");
   smvm_init(&vm);
-  smvm_assemble(&vm, content, true);
+  smvm_assemble(&vm, content);
   smvm_execute(&vm);
   free(content);
   smvm_free(&vm);
@@ -17,7 +17,7 @@ int main() {
 }
 
 char *readfile(const char *fname) {
-  FILE *fp = fopen(fname, "rb");
+  FILE *fp = fopen(fname, "r");
   long file_size;
 
   if (fp == NULL) {
