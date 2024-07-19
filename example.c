@@ -8,10 +8,14 @@ char *readfile(const char *fname);
 int main() {
   smvm vm;
   char *content = readfile("test.asmv");
+  char *output;
   smvm_init(&vm);
   smvm_assemble(&vm, content);
-  smvm_execute(&vm);
+  // smvm_execute(&vm); // temporarily commented out
+  smvm_disassemble(&vm, output);
+  printf("OUTPUT\n---\n%s\n---\n", output);
   free(content);
+  free(output);
   smvm_free(&vm);
   return 0;
 }

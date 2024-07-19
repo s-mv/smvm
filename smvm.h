@@ -168,6 +168,7 @@ typedef enum smvm_mode {
 void smvm_init(smvm *vm);
 void smvm_assemble(smvm *vm, char *code);
 void smvm_execute(smvm *vm);
+void smvm_disassemble(smvm *vm, char *code);
 void smvm_free(smvm *vm);
 
 /* vm - helpers */
@@ -383,8 +384,39 @@ static void asmv_assemble(asmv *as);
 static asmv_inst asmv_lex_inst(asmv *as);
 static void asmv_free(asmv *as);
 
-// helper functions
+// helper function
 static u8 asmv_parse_register(asmv *as);
+
+/*** vm - disassembler (dsmv) ***/
+
+typedef struct dsmv {
+  listmv bytecode;  // input, listmv(u8)
+  listmv code;      // output, listmv(str)
+  u64 index;
+} dsmv;
+
+static void dsmv_init(dsmv *ds);
+static void dsmv_disassemble();
+/*** vm - disassembler (dsmv) - implementation ***/
+
+static void dsmv_init(dsmv *ds) {
+  listmv_init(&ds->bytecode, sizeof(u8));
+  listmv_init(&ds->code, sizeof(char));
+  ds->index = 0;
+}
+
+static void dsmv_disassemble() {
+  // TODO
+}
+
+/* vm - disassembler (dsmv) - inline functions */
+static inline void dsmv_free(dsmv *ds) {
+  listmv_free(&ds->code);
+  // ownership of ds->bytecode goes to a vm
+  // so no need to free it
+}
+
+// ---
 
 // this isn't even... remotely useful
 // but for the sake of some semblence of order, it exists now
@@ -467,6 +499,16 @@ void smvm_free(smvm *vm) {
   listmv_free(&vm->memory);
   listmv_free(&vm->bytecode);
   listmv_free(&vm->stack);
+}
+
+void smvm_disassemble(smvm *vm, char *code) {
+  dsmv dis;
+  dsmv_init(&dis);
+  dis.bytecode = vm->bytecode;
+  dsmv_disassemble();
+  code = malloc(dis.code.len);
+  strncpy(code, (char *)dis.code.data, dis.code.len);
+  dsmv_free(&dis);
 }
 
 /*** vm - assembler - implementation ***/

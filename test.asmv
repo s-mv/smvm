@@ -1,2 +1,2 @@
-puti -12
+puts "Hello, world!\n"
 halt
