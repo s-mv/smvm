@@ -38,6 +38,7 @@ void listmv_grow(listmv *ls, u64 new_cap);
 void *listmv_at(listmv *ls, u64 index);
 void listmv_free(listmv *ls);
 i64 parse_signed(u64 unum, u8 width) {
+  if (width == 8) return unum;
   i64 result;
   u64 mask = (1ull << (width * 8)) - 1;
   u64 sign_bit = 1ull << ((width * 8) - 1);
@@ -174,8 +175,8 @@ void smvm_free(smvm *vm);
 /* vm - helpers */
 
 // converts to native endian from little-endian, TODO
-static void stack_push_u64(smvm *vm, u64 value);
-static u64 stack_pop_u64(smvm *vm);
+static void stack_push(smvm *vm, u8 *value, u64 width);
+static u8 *stack_pop(smvm *vm, u64 width);
 static bool is_little_endian();
 /* vm - inline helpers */
 
@@ -1006,18 +1007,26 @@ void jne_fn(smvm *vm) {
 }
 void jl_fn(smvm *vm) {}
 void loop_fn(smvm *vm) {
-  stack_push_u64(vm, vm->registers[reg_ip]);
+  stack_push(vm, (u8 *)&vm->registers[reg_ip], 8);
   vm->registers[reg_ip] = 0;
   smvm_ip_inc(vm, vm->offset);
 }
 void call_fn(smvm *vm) {
-  stack_push_u64(vm, vm->registers[reg_ip] + vm->offset);
+  u64 addr = vm->registers[reg_ip] + vm->offset;
+  stack_push(vm, (u8 *)&addr, 8);
   vm->registers[reg_ip] = 0;
   mov_mem((u8 *)&vm->registers[reg_ip], (u8 *)vm->pointers[0], vm->widths[0]);
 }
-void ret_fn(smvm *vm) { vm->registers[reg_ip] = stack_pop_u64(vm); }
-void push_fn(smvm *vm) {}
-void pop_fn(smvm *vm) {}
+void ret_fn(smvm *vm) { vm->registers[reg_ip] = *(i64 *)stack_pop(vm, 8); }
+void push_fn(smvm *vm) {
+  stack_push(vm, (u8 *)vm->pointers[0], vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
+void pop_fn(smvm *vm) {
+  u8 *data = stack_pop(vm, vm->widths[0]);
+  mov_mem((u8 *)vm->pointers[0], data, vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
 void sys_fn(smvm *vm) {}
 void getu_fn(smvm *vm) {
   u64 input;
@@ -1050,19 +1059,17 @@ void puts_fn(smvm *vm) {
 
 /* vm - helpers - implementation */
 
-static void stack_push_u64(smvm *vm, u64 value) {
-  listmv_grow(&vm->stack, vm->stack.len + 8);
-  mov_mem((u8 *)vm->stack.data, (u8 *)&value, 8);
-  vm->stack.len += 8;
+static void stack_push(smvm *vm, u8 *value, u64 width) {
+  listmv_grow(&vm->stack, vm->stack.len + width);
+  mov_mem((u8 *)vm->stack.data, value, width);
+  vm->stack.len += width;
   update_stack_pointer(vm);
 }
 
-u64 stack_pop_u64(smvm *vm) {
-  u64 value = 0;
-  u8 *bytes = listmv_pop_array(&vm->stack, 8);
+u8 *stack_pop(smvm *vm, u64 width) {
+  u8 *bytes = listmv_pop_array(&vm->stack, width);
   update_stack_pointer(vm);
-  mov_mem((u8 *)&value, bytes, 8);
-  return value;
+  return bytes;
 }
 
 static bool is_little_endian() {

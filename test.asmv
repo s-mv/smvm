@@ -1,6 +1,5 @@
-    call .hello
-    halt
-
-.hello
-    puts "Hello, world!\n"
-    ret
+mov  rb 69 
+push rb
+pop  ra
+puti ra
+halt
