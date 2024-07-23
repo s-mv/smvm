@@ -584,30 +584,51 @@ static u8 asmv_parse_register(asmv *as) {
 
 // TODO, floating point numbers
 static asmv_op_data parse_number(asmv *as) {
-  u64 num = 0;
+  double num = 0.0;
   bool neg = false;
+  bool is_float = false;
+  double fraction = 0.1;
+
   if (asmv_current(as) == '-') {
     neg = true;
     asmv_skip(as);
   }
 
-  while (isdigit(asmv_current(as))) {
-    num = num * 10 + (asmv_current(as) - '0');
-    asmv_skip(as);
-    if (asmv_current(as) == '_')
-      asmv_skip(as);  // something like 1_00_000 is valid
+  while (isdigit(asmv_current(as)) || asmv_current(as) == '.' ||
+         asmv_current(as) == '_') {
+    if (asmv_current(as) == '.') {
+      if (is_float) {
+        // multiple decimal points (TODO, handle)
+        break;
+      }
+      is_float = true;
+      asmv_skip(as);
+    } else if (asmv_current(as) == '_') asmv_skip(as);
+    else {
+      if (!is_float) {
+        num = num * 10 + (asmv_current(as) - '0');
+      } else {
+        num += (asmv_current(as) - '0') * fraction;
+        fraction *= 0.1;
+      }
+      asmv_skip(as);
+    }
   }
+
   asmv_op_data data;
-  if (neg) {
+  if (is_float) {
+    data.type = asmv_fnum_type;
+    data.fnum = neg ? -num : num;
+  } else if (neg) {
     data.type = asmv_num_type;
     data.num = -num;
   } else {
     data.type = asmv_unum_type;
     data.unum = num;
   }
+
   return data;
 }
-
 // I hate nesting
 static asmv_inst asmv_lex_inst(asmv *as) {
   char buffer[512];
@@ -659,13 +680,10 @@ static asmv_inst asmv_lex_inst(asmv *as) {
 
       if (current == '-' || isdigit(current)) {
         // immediate mode, handle numbers
-        // TODO: handle bases and .d+ (clashes with labels right now)
         // sub 12 b c makes no sense, 12 = b + c what??
         if (instruction_table[i].num_ops > 1 && j == 0)
           return (asmv_inst){.error = asmv_immediate_x};
         // handle immediate addressing
-        // either u or f, otherwise irrelevant
-
         op.mode = mode_immediate;
         asmv_op_data data = parse_number(as);
         op.data = data;
@@ -675,9 +693,10 @@ static asmv_inst asmv_lex_inst(asmv *as) {
             op.data.num = op.data.num & ((1ull << (8 << op.size)) - 1);
         } else if (data.type == asmv_unum_type) {
           op.size = min_space_neededu(op.data.num);
+        } else if (data.type == asmv_fnum_type) {
+          op.size = smvm_reg64;
         }
         op.width = op.size;
-        // TODO, floating point numbers
       } else if (current == '@') {
         asmv_skip(as);
         while (isspace(asmv_current(as))) asmv_skip(as);
@@ -925,7 +944,11 @@ void addu_fn(smvm *vm) {
   mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
   smvm_ip_inc(vm, vm->offset);
 }
-void addf_fn(smvm *vm) {}
+void addf_fn(smvm *vm) {
+  f64 result = *(f64 *)vm->pointers[1] + *(f64 *)vm->pointers[2];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
 void sub_fn(smvm *vm) {
   i64 result = *vm->pointers[1] - *vm->pointers[2];
   mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
