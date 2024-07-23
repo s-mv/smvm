@@ -1,3 +1,4 @@
-example
+.vscode
 
-out/!.gitkeep
+out/*
+!out/.gitkeep

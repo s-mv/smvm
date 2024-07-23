@@ -156,14 +156,18 @@ typedef enum smvm_flag {
 } smvm_flag;
 
 typedef enum smvm_mode {
-  // mode takes 2 bits
-  mode_register = 0b00,    // r
-  mode_indirect = 0b01,    // x
-  mode_immediate = 0b10,   // i
-  mode_direct = 0b11,      // d
-  mode_implicit = 0b1111,  // TODO remove?
+  // mode takes 3 bits
+  // 1st bit indicates if data is appended   (1 = appended)
+  // 2nd bit indicates if register is needed (1 = needed)
+  // 3rd bit indicates if address is stored  (1 = yes)
+  mode_indirect = 0b001,   // x
+  mode_register = 0b010,   // r
+  mode_immediate = 0b100,  // i
+  mode_direct = 0b101,     // d
+  mode_offset = 0b110,     // o
   // implicit type is quite literally, implicit; implicit instructions are
   // simply run without checking the "mode" first, unlike other instructions
+  mode_implicit = 0b111,  // TODO remove?
 } smvm_mode;
 
 void smvm_init(smvm *vm);
@@ -174,10 +178,10 @@ void smvm_free(smvm *vm);
 
 /* vm - helpers */
 
-// converts to native endian from little-endian, TODO
 static void stack_push(smvm *vm, u8 *value, u64 width);
 static u8 *stack_pop(smvm *vm, u64 width);
 static bool is_little_endian();
+
 /* vm - inline helpers */
 
 static inline void update_stack_pointer(smvm *vm) {
@@ -454,12 +458,21 @@ void smvm_execute(smvm *vm) {
     } else {
       u8 reg[3] = {inst[2] & 7, (inst[2] >> 3) & 7, inst[3] & 7};
       u8 offset = num_ops != 3 ? 3 : 4;
+      // modes are 3 bit long
+      // 1st mode: 0.0|0.1|1.0
+      // 2nd mode: 1.1|2.0|2.1
+      // 3rd mode: 3.2|3.3|3.4
+      u8 modes[3] = {
+          ((inst[0] >> 5) & 6) | (inst[1] >> 7),
+          ((inst[1] >> 6) & 1) & (inst[2] >> 6),
+          inst[3] >> 3,
+      };
 
       for (int i = 0; i < num_ops; i++)
         vm->widths[i] = 1 << ((inst[1] >> (i * 2)) & 3);
 
       for (int i = 0; i < num_ops; i++) {
-        switch (inst[i] >> 6) {
+        switch (modes[i]) {
           case mode_register: vm->pointers[i] = &vm->registers[reg[i]]; break;
           case mode_indirect:
             listmv_grow(&vm->memory, vm->registers[reg[i]] + vm->widths[i] + 1);
@@ -474,6 +487,9 @@ void smvm_execute(smvm *vm) {
             offset += size;
             vm->pointers[i] = listmv_at(&vm->memory, address);
             break;
+          }
+          case mode_offset: {
+            break;  // TODO
           }
           case mode_immediate:
             u8 size = 1 << (reg[i] & 3);

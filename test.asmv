@@ -2,4 +2,4 @@ mov  rb 69
 push rb
 pop  ra
 puti ra
-halt
+ret

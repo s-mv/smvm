@@ -13,11 +13,11 @@ int main(int argc, char **argv) {
   else content = readfile("test.asmv");
   smvm_init(&vm);
   smvm_assemble(&vm, content);
-  smvm_execute(&vm);  // temporarily commented out
+  smvm_execute(&vm);
   // smvm_disassemble(&vm, output);
-  printf("\n---\nOUTPUT\n---\n---\n");
+  // printf("\n---\nOUTPUT\n---\n---\n");
+  // free(output);
   free(content);
-  free(output);
   smvm_free(&vm);
   return 0;
 }
