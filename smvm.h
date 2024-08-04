@@ -12,7 +12,7 @@ typedef uint64_t u64;
 typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;
-typedef int64_t i64;
+typedef uint64_t i64;
 typedef int32_t i32;
 typedef int16_t i16;
 typedef int8_t i8;
@@ -72,7 +72,7 @@ typedef struct smvm {
   listmv memory;
   listmv bytecode;
   listmv stack;
-  u64 registers[smvm_register_num];
+  i64 registers[smvm_register_num];
   u8 flags;
   bool little_endian;
   // this is all cache, maybe I should make another struct
@@ -156,18 +156,18 @@ typedef enum smvm_flag {
 } smvm_flag;
 
 typedef enum smvm_mode {
-  // mode takes 3 bits
-  // 1st bit indicates if data is appended   (1 = appended)
-  // 2nd bit indicates if register is needed (1 = needed)
-  // 3rd bit indicates if address is stored  (1 = yes)
-  mode_indirect = 0b001,   // x
-  mode_register = 0b010,   // r
-  mode_immediate = 0b100,  // i
-  mode_direct = 0b101,     // d
-  mode_offset = 0b110,     // o
+  // mode takes 3 bits however only 2 bits are present here and the reason is
+  // that the 3rd bit just indicates that there's an offset appended
+  // 0th bit indicates if data is appended   (1 = appended)
+  // 1st bit indicates if register is needed (1 = needed)
+  // 2nd bit indicates if offset is stored   (1 = yes)
+  mode_register = 0b00,   // r
+  mode_indirect = 0b01,   // x
+  mode_immediate = 0b10,  // i
+  mode_direct = 0b11,     // d
   // implicit type is quite literally, implicit; implicit instructions are
   // simply run without checking the "mode" first, unlike other instructions
-  mode_implicit = 0b111,  // TODO remove?
+  // mode_implicit = 0b111,  // TODO remove?
 } smvm_mode;
 
 void smvm_init(smvm *vm);
@@ -346,10 +346,11 @@ typedef struct asmv_op_data {
 } asmv_op_data;
 
 typedef struct asmv_operand {
-  smvm_mode mode;
-  smvm_data_width width : 4;
-  smvm_data_width size : 4;
   asmv_op_data data;
+  u8 offset;
+  smvm_mode mode : 2;
+  smvm_data_width width : 2;
+  smvm_data_width size : 2;
 } asmv_operand;
 
 typedef struct asmv_inst {
@@ -375,12 +376,12 @@ typedef struct label_reference {
 } label_reference;
 
 /* asmv - inline functions */
-static inline u64 asmv_current(asmv *a) { return a->code[a->index]; }
-static inline u64 asmv_peek(asmv *a) { return a->code[a->index + 1]; }
-static inline u64 asmv_peek2(asmv *a) { return a->code[a->index + 2]; }
-static inline u64 asmv_prev(asmv *a) { return a->code[a->index - 1]; }
-static inline u64 asmv_prev2(asmv *a) { return a->code[a->index - 2]; }
-static inline u64 asmv_next(asmv *a) { return a->code[++a->index]; }
+static inline char asmv_current(asmv *a) { return a->code[a->index]; }
+static inline char asmv_peek(asmv *a) { return a->code[a->index + 1]; }
+static inline char asmv_peek2(asmv *a) { return a->code[a->index + 2]; }
+static inline char asmv_prev(asmv *a) { return a->code[a->index - 1]; }
+static inline char asmv_prev2(asmv *a) { return a->code[a->index - 2]; }
+static inline char asmv_next(asmv *a) { return a->code[++a->index]; }
 static inline void asmv_skip(asmv *a) { ++a->index; }
 
 /* asmv - function delcaration */
@@ -457,54 +458,55 @@ void smvm_execute(smvm *vm) {
       instruction_table[code].fn(vm);
     } else {
       u8 reg[3] = {inst[2] & 7, (inst[2] >> 3) & 7, inst[3] & 7};
-      u8 offset = num_ops != 3 ? 3 : 4;
-      // modes are 3 bit long
-      // 1st mode: 0.0|0.1|1.0
-      // 2nd mode: 1.1|2.0|2.1
-      // 3rd mode: 3.2|3.3|3.4
-      u8 modes[3] = {
-          ((inst[0] >> 5) & 6) | (inst[1] >> 7),
-          ((inst[1] >> 6) & 1) & (inst[2] >> 6),
-          inst[3] >> 3,
-      };
+      u8 code_width = num_ops != 3 ? 3 : 4;
+      i8 offsets[3] = {0, 0, 0};
 
-      for (int i = 0; i < num_ops; i++)
-        vm->widths[i] = 1 << ((inst[1] >> (i * 2)) & 3);
+      vm->widths[0] = (inst[1] >> 2) & 3;
+      vm->widths[1] = inst[1] & 3;
+      vm->widths[2] = (inst[3] >> 3) & 3;
 
       for (int i = 0; i < num_ops; i++) {
-        switch (modes[i]) {
+        u8 byte = (i == 2) ? 3 : 1;
+        u8 bit_shift = (i == 2) ? 5 : (5 - i);
+        vm->widths[i] = 1 << vm->widths[i];
+        if ((inst[byte] >> bit_shift) & 1) offsets[i] = inst[code_width++];
+
+        switch (inst[i] >> 6) {
           case mode_register: vm->pointers[i] = &vm->registers[reg[i]]; break;
           case mode_indirect:
-            listmv_grow(&vm->memory, vm->registers[reg[i]] + vm->widths[i] + 1);
+            listmv_grow(&vm->memory,
+                        vm->registers[reg[i]] + vm->widths[i] + offsets[i] + 1);
             vm->pointers[i] = listmv_at(&vm->memory, vm->registers[reg[i]]);
+            if (offsets[i] != 0) {
+              u8 *ptr = (u8 *)vm->pointers[i];
+              ptr -= offsets[i];
+            }
             break;
           case mode_direct: {
             u8 size = 1 << (reg[i] & 3);
             u64 address = 0;
             // reg also holds size
-            mov_mem((u8 *)&address, inst + offset, size);
+            mov_mem((u8 *)&address, inst + code_width, size);
             listmv_grow(&vm->memory, address + vm->widths[i] + 1);
-            offset += size;
+            code_width += size;
             vm->pointers[i] = listmv_at(&vm->memory, address);
             break;
-          }
-          case mode_offset: {
-            break;  // TODO
           }
           case mode_immediate:
             u8 size = 1 << (reg[i] & 3);
             vm->data[i] = 0;
             if (vm->little_endian)
-              mov_mem_reverse((u8 *)(&vm->data[i]), inst + offset, size);
-            else mov_mem((u8 *)(&vm->data[i]), inst + offset, size);
-            offset += size;
+              mov_mem_reverse((u8 *)(&vm->data[i]), inst + code_width, size);
+            else mov_mem((u8 *)(&vm->data[i]), inst + code_width, size);
+            vm->data[i] += offsets[i];
+            code_width += size;
             vm->pointers[i] = &vm->data[i];
             break;
           default:  // idk what this is for
             break;
         }
       }
-      vm->offset = offset;
+      vm->offset = code_width;
       instruction_table[code].fn(vm);
     }
 
@@ -629,6 +631,24 @@ static asmv_op_data parse_number(asmv *as) {
 
   return data;
 }
+
+static u8 parse_offset(asmv *as) {
+  while (isspace(asmv_current(as))) asmv_skip(as);
+
+  // no offset!
+  if (asmv_current(as) != '+' && asmv_current(as) != '-') return 0;
+
+  char sign = asmv_current(as);
+  asmv_skip(as);
+
+  asmv_op_data offset_data = parse_number(as);
+  // invalid offset, treader as 0
+  if (offset_data.type != asmv_num_type && offset_data.type != asmv_unum_type)
+    return 0;
+
+  return (sign == '+') ? offset_data.num : -offset_data.num;
+}
+
 // I hate nesting
 static asmv_inst asmv_lex_inst(asmv *as) {
   char buffer[512];
@@ -697,6 +717,7 @@ static asmv_inst asmv_lex_inst(asmv *as) {
           op.size = smvm_reg64;
         }
         op.width = op.size;
+        op.offset = parse_offset(as);
       } else if (current == '@') {
         asmv_skip(as);
         while (isspace(asmv_current(as))) asmv_skip(as);
@@ -722,7 +743,7 @@ static asmv_inst asmv_lex_inst(asmv *as) {
               asmv_skip(as);
             }
           } else op.width = smvm_reg64;
-
+          op.offset = parse_offset(as);
         } else if (current == 'r') {
           // else if register, indirect addressing mode
           asmv_skip(as);
@@ -732,6 +753,7 @@ static asmv_inst asmv_lex_inst(asmv *as) {
           op.mode = mode_indirect;
           op.width = reg >> 3;
           op.data.reg = reg & 0b111;
+          op.offset = parse_offset(as);
         } else {
           // TODO, handle error
         }
@@ -744,6 +766,7 @@ static asmv_inst asmv_lex_inst(asmv *as) {
         op.mode = mode_register;
         op.width = reg >> 3;
         op.data.reg = reg & 0b111;
+        op.offset = parse_offset(as);
       } else if (current == '"' && inst.code == op_puts) {
         asmv_skip(as);
         listmv_init(&op.data.str, sizeof(char));
@@ -825,6 +848,7 @@ static void asmv_assemble(asmv *as) {
       if (inst_ref->operands[i].data.type == asmv_label_type) {
         label_reference ref = {as->instructions.len - 1, i};
         listmv_push(&as->label_refs, &ref);
+        continue;
       }
   }
 
@@ -872,20 +896,31 @@ static void asmv_assemble(asmv *as) {
 
     u8 primary_bytes[4] = {inst.code, 0, 0, 0};
     // u8 primary_size = 4;
-    u8 immediate_bytes[24] = {0};  // data/address bytes
+    u8 immediate_bytes[27] = {0};  // data/address bytes
     u64 immediate_size = 0;
+
+    // add "hey, data contains offset!" flags
+    if (inst.operands[0].offset) primary_bytes[1] |= 1 << 5;
+    if (inst.operands[1].offset) primary_bytes[1] |= 1 << 4;
+    if (inst.operands[2].offset) primary_bytes[3] |= 1 << 5;
+
+    // add width bits
+    primary_bytes[1] |= inst.operands[0].width << 2;
+    primary_bytes[1] |= inst.operands[1].width;
+    primary_bytes[3] |= inst.operands[2].width << 3;
 
     for (int i = 0; i < num_ops; i++) {
       asmv_operand op = inst.operands[i];
 
       // set the info and mode bits
       primary_bytes[i] |= op.mode << 6;
-      primary_bytes[1] |= op.width << (i * 2);
       if (op.data.type == asmv_str_type) continue;
 
       // set the register/data bits
       u8 byte = i == 2 ? 3 : 2;
       u8 offset = i == 1 ? 3 : 0;
+
+      if (op.offset) immediate_bytes[immediate_size++] = op.offset;
       if (op.mode == mode_register || op.mode == mode_indirect) {
         primary_bytes[byte] |= op.data.reg << offset;
       } else if (op.mode == mode_direct || op.mode == mode_immediate) {

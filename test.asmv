@@ -1,5 +1,3 @@
-mov  rb 69 
-push rb
-pop  ra
+mov @ra 2
 puti ra
-ret
+halt
