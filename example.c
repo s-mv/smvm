@@ -14,9 +14,6 @@ int main(int argc, char **argv) {
   smvm_init(&vm);
   smvm_assemble(&vm, content);
   smvm_execute(&vm);
-  // smvm_disassemble(&vm, output);
-  // printf("\n---\nOUTPUT\n---\n---\n");
-  // free(output);
   free(content);
   smvm_free(&vm);
   return 0;

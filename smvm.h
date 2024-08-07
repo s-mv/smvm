@@ -72,6 +72,7 @@ typedef struct smvm {
   listmv memory;
   listmv bytecode;
   listmv stack;
+  listmv syscalls;
   i64 registers[smvm_register_num];
   u8 flags;
   bool little_endian;
@@ -81,6 +82,12 @@ typedef struct smvm {
   u8 widths[3];
   u8 offset;
 } smvm;
+
+typedef struct smvm_syscall {
+  u64 id;
+  char *name;
+  void *function;
+} smvm_syscall;
 
 typedef enum smvm_opcode {
   op_halt = 0b000000,
@@ -171,6 +178,7 @@ typedef enum smvm_mode {
 } smvm_mode;
 
 void smvm_init(smvm *vm);
+void smvm_register_syscall(smvm *vm, void *fn, char *fn_name);
 void smvm_assemble(smvm *vm, char *code);
 void smvm_execute(smvm *vm);
 void smvm_disassemble(smvm *vm, char *code);
@@ -262,7 +270,7 @@ void call_fn(smvm *vm);
 void ret_fn(smvm *vm);
 void push_fn(smvm *vm);
 void pop_fn(smvm *vm);
-void sys_fn(smvm *vm);
+void scall(smvm *vm);
 void getu_fn(smvm *vm);
 void puti_fn(smvm *vm);
 void putu_fn(smvm *vm);
@@ -278,28 +286,28 @@ typedef struct instruction_info {
 } instruction_info;
 
 instruction_info instruction_table[] = {
-    [op_halt] = {"halt", 4, 0, trap_fn},  [op_mov] = {"mov", 3, 2, mov_fn},
-    [op_movu] = {"movu", 4, 2, movu_fn},  [op_movf] = {"movf", 4, 2, movf_fn},
-    [op_swap] = {"swap", 4, 2, swap_fn},  [op_lea] = {"lea", 3, 2, lea_fn},
-    [op_addu] = {"addu", 4, 3, addu_fn},  [op_addf] = {"addf", 4, 3, addf_fn},
-    [op_add] = {"add", 3, 3, add_fn},     [op_subu] = {"subu", 4, 3, subu_fn},
-    [op_subf] = {"subf", 4, 3, subf_fn},  [op_sub] = {"sub", 3, 3, sub_fn},
-    [op_mulu] = {"mulu", 4, 3, mulu_fn},  [op_mulf] = {"mulf", 4, 3, mulf_fn},
-    [op_mul] = {"mul", 3, 3, mul_fn},     [op_divu] = {"divu", 4, 3, divu_fn},
-    [op_divf] = {"divf", 4, 3, divf_fn},  [op_div] = {"div", 3, 3, div_fn},
-    [op_inc] = {"inc", 3, 1, inc_fn},     [op_dec] = {"dec", 3, 1, dec_fn},
-    [op_and] = {"and", 3, 3, and_fn},     [op_or] = {"or", 2, 3, or_fn},
-    [op_xor] = {"xor", 3, 3, xor_fn},     [op_shli] = {"shli", 4, 3, shli_fn},
-    [op_shl] = {"shl", 3, 3, shl_fn},     [op_shri] = {"shri", 4, 3, shri_fn},
-    [op_shr] = {"shr", 3, 3, shr_fn},     [op_slc] = {"slc", 3, 3, slc_fn},
-    [op_src] = {"src", 3, 3, src_fn},     [op_jmp] = {"jmp", 3, 1, jmp_fn},
-    [op_je] = {"je", 2, 3, je_fn},        [op_jne] = {"jne", 3, 3, jne_fn},
-    [op_jl] = {"jl", 2, 3, jl_fn},        [op_loop] = {"loop", 4, 2, loop_fn},
-    [op_call] = {"call", 4, 1, call_fn},  [op_ret] = {"ret", 3, 0, ret_fn},
-    [op_push] = {"push", 4, 1, push_fn},  [op_pop] = {"pop", 3, 1, pop_fn},
-    [op_scall] = {"scall", 5, 1, sys_fn}, [op_getu] = {"getu", 4, 1, getu_fn},
-    [op_puti] = {"puti", 4, 1, puti_fn},  [op_putu] = {"putu", 4, 1, putu_fn},
-    [op_putf] = {"putf", 4, 1, putf_fn},  [op_puts] = {"puts", 4, 1, puts_fn}};
+    [op_halt] = {"halt", 4, 0, trap_fn}, [op_mov] = {"mov", 3, 2, mov_fn},
+    [op_movu] = {"movu", 4, 2, movu_fn}, [op_movf] = {"movf", 4, 2, movf_fn},
+    [op_swap] = {"swap", 4, 2, swap_fn}, [op_lea] = {"lea", 3, 2, lea_fn},
+    [op_addu] = {"addu", 4, 3, addu_fn}, [op_addf] = {"addf", 4, 3, addf_fn},
+    [op_add] = {"add", 3, 3, add_fn},    [op_subu] = {"subu", 4, 3, subu_fn},
+    [op_subf] = {"subf", 4, 3, subf_fn}, [op_sub] = {"sub", 3, 3, sub_fn},
+    [op_mulu] = {"mulu", 4, 3, mulu_fn}, [op_mulf] = {"mulf", 4, 3, mulf_fn},
+    [op_mul] = {"mul", 3, 3, mul_fn},    [op_divu] = {"divu", 4, 3, divu_fn},
+    [op_divf] = {"divf", 4, 3, divf_fn}, [op_div] = {"div", 3, 3, div_fn},
+    [op_inc] = {"inc", 3, 1, inc_fn},    [op_dec] = {"dec", 3, 1, dec_fn},
+    [op_and] = {"and", 3, 3, and_fn},    [op_or] = {"or", 2, 3, or_fn},
+    [op_xor] = {"xor", 3, 3, xor_fn},    [op_shli] = {"shli", 4, 3, shli_fn},
+    [op_shl] = {"shl", 3, 3, shl_fn},    [op_shri] = {"shri", 4, 3, shri_fn},
+    [op_shr] = {"shr", 3, 3, shr_fn},    [op_slc] = {"slc", 3, 3, slc_fn},
+    [op_src] = {"src", 3, 3, src_fn},    [op_jmp] = {"jmp", 3, 1, jmp_fn},
+    [op_je] = {"je", 2, 3, je_fn},       [op_jne] = {"jne", 3, 3, jne_fn},
+    [op_jl] = {"jl", 2, 3, jl_fn},       [op_loop] = {"loop", 4, 2, loop_fn},
+    [op_call] = {"call", 4, 1, call_fn}, [op_ret] = {"ret", 3, 0, ret_fn},
+    [op_push] = {"push", 4, 1, push_fn}, [op_pop] = {"pop", 3, 1, pop_fn},
+    [op_scall] = {"scall", 5, 1, scall}, [op_getu] = {"getu", 4, 1, getu_fn},
+    [op_puti] = {"puti", 4, 1, puti_fn}, [op_putu] = {"putu", 4, 1, putu_fn},
+    [op_putf] = {"putf", 4, 1, putf_fn}, [op_puts] = {"puts", 4, 1, puts_fn}};
 
 #define instruction_table_len \
   (sizeof(instruction_table) / sizeof(*instruction_table))
@@ -434,7 +442,14 @@ void smvm_init(smvm *vm) {
   listmv_init(&vm->bytecode, sizeof(u8));
   listmv_init(&vm->memory, sizeof(u8));
   listmv_init(&vm->stack, sizeof(u8));
+  listmv_init(&vm->syscalls, sizeof(smvm_syscall));
   vm->little_endian = is_little_endian();
+}
+
+void smvm_register_syscall(smvm *vm, void *fn, char *fn_name) {
+  int id = vm->syscalls.len;
+  smvm_syscall call = {.id = id, .function = fn, .name = fn_name};
+  listmv_push(&vm->syscalls, &call);
 }
 
 void smvm_assemble(smvm *vm, char *code) {
@@ -518,6 +533,7 @@ void smvm_free(smvm *vm) {
   listmv_free(&vm->memory);
   listmv_free(&vm->bytecode);
   listmv_free(&vm->stack);
+  listmv_free(&vm->syscalls);
 }
 
 void smvm_disassemble(smvm *vm, char *code) {
@@ -1101,7 +1117,9 @@ void pop_fn(smvm *vm) {
   mov_mem((u8 *)vm->pointers[0], data, vm->widths[0]);
   smvm_ip_inc(vm, vm->offset);
 }
-void sys_fn(smvm *vm) {}
+
+void scall(smvm *vm) {}
+
 void getu_fn(smvm *vm) {
   u64 input;
   scanf("%lu", &input);
