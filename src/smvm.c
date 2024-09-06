@@ -164,8 +164,6 @@ void smvm_set_flag(smvm *vm, smvm_flag flag) { vm->flags |= flag; }
 
 void smvm_reset_flag(smvm *vm, smvm_flag flag) { vm->flags &= ~flag; }
 
-
-
 /* vm - opcode functions - implementation */
 
 void trap_fn(smvm *vm) { smvm_set_flag(vm, flag_t); }
@@ -181,7 +179,12 @@ void movf_fn(smvm *vm) {
   mov_mem((u8 *)vm->pointers[0], (u8 *)vm->pointers[1], vm->widths[0]);
   smvm_ip_inc(vm, vm->offset);
 }
-void swap_fn(smvm *vm) {}
+void swap_fn(smvm *vm) {
+  u64 temp;
+  u8 width = vm->widths[0] > vm->widths[1] ? vm->widths[0] : vm->widths[1];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)temp, width);
+  mov_mem((u8 *)temp, (u8 *)vm->pointers[1], width);
+}
 void lea_fn(smvm *vm) {}
 void add_fn(smvm *vm) {
   i64 result = *vm->pointers[1] + *vm->pointers[2];
@@ -208,7 +211,11 @@ void subu_fn(smvm *vm) {
   mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
   smvm_ip_inc(vm, vm->offset);
 }
-void subf_fn(smvm *vm) {}
+void subf_fn(smvm *vm) {
+  f64 result = *(f64 *)vm->pointers[1] - *(f64 *)vm->pointers[2];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
 void mul_fn(smvm *vm) {
   i64 result = *vm->pointers[1] * *vm->pointers[2];
   mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
@@ -219,7 +226,11 @@ void mulu_fn(smvm *vm) {
   mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
   smvm_ip_inc(vm, vm->offset);
 }
-void mulf_fn(smvm *vm) {}
+void mulf_fn(smvm *vm) {
+  f64 result = *(f64 *)vm->pointers[1] * *(f64 *)vm->pointers[2];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
 void div_fn(smvm *vm) {
   i64 result = *vm->pointers[1] / *vm->pointers[2];
   mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
@@ -230,7 +241,11 @@ void divu_fn(smvm *vm) {
   mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
   smvm_ip_inc(vm, vm->offset);
 }
-void divf_fn(smvm *vm) {}
+void divf_fn(smvm *vm) {
+  f64 result = *(f64 *)vm->pointers[1] + *(f64 *)vm->pointers[2];
+  mov_mem((u8 *)vm->pointers[0], (u8 *)&result, vm->widths[0]);
+  smvm_ip_inc(vm, vm->offset);
+}
 void inc_fn(smvm *vm) {
   u64 op = *vm->pointers[0] + 1;
   mov_mem((u8 *)vm->pointers[0], (u8 *)&op, vm->widths[0]);
