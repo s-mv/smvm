@@ -5,19 +5,26 @@
 
 #define smvm_register_num (8)
 
+typedef struct smvm_header {
+  /* data */
+} smvm_header;
+
 typedef struct smvm {
-  listmv memory;
-  listmv bytecode;
-  listmv stack;
-  listmv syscalls;
+  listmv(u8) memory;
+  listmv(u8) bytecode;
+  listmv(u8) stack;
+  listmv(smvm_syscall) syscalls;  // natives
+  smvm_header header;
   i64 registers[smvm_register_num];
   u8 flags;
   bool little_endian;
   // this is all cache, maybe I should make another struct
-  i64 *pointers[3];
-  i64 data[3];
-  u8 widths[3];
-  u8 offset;
+  struct cache {
+    i64 *pointers[3];
+    i64 data[3];
+    u8 widths[3];
+    u8 offset;
+  } cache;
 } smvm;
 
 typedef struct smvm_syscall {
@@ -78,10 +85,11 @@ typedef enum smvm_register {
   reg_b = 0b001,
   reg_c = 0b010,
   reg_d = 0b011,
-  reg_e = 0b100,
-  reg_sp = 0b101,
-  reg_ip = 0b110,
-  reg_none = 0b1000
+  reg_fl = 0b100,  // flag register
+  reg_sp = 0b101,  // stack pointer
+  reg_ip = 0b110,  // instruction pointer
+  reg_so = 0b111,  // syscall offset register (a lifesaver)
+  reg_none = 0b1000,
 } smvm_register;
 
 typedef enum smvm_data_width {

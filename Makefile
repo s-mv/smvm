@@ -1,7 +1,7 @@
 CFILES = src/util.c src/smvm.c src/asmv.c src/dsmv.c
 
 example:
-	$(CC) example.c $(CFILES) -I ./src -o out/example -std=c99 -fshort-enums -g
+	$(CC) main.c $(CFILES) -I ./src -o out/example -std=c99 -fshort-enums -g
 
 # header: TODO
 

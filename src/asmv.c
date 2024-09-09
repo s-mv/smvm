@@ -213,7 +213,7 @@ asmv_inst asmv_lex_inst(asmv *as) {
             }
           } else op.width = smvm_reg64;
           op.offset = parse_offset(as);
-        } else if (current == 'r') {
+        } else if (asmv_current(as) == 'r') {
           // else if register, indirect addressing mode
           asmv_skip(as);
           smvm_register reg = asmv_parse_register(as);
