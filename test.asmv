@@ -1,3 +1,4 @@
+mov ra 2
 mov @ra 2
-puti ra
+puti @ra
 halt
