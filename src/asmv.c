@@ -5,7 +5,7 @@
 void asmv_init(asmv *as) {
   as->index = 0;
   as->panic_mode = false;
-  listmv_init(&as->bytecode, sizeof(u8));
+  listmv_init(&as->output.bytecode, sizeof(u8));
   listmv_init(&as->instructions, sizeof(asmv_inst));
   listmv_init(&as->label_addrs, sizeof(asmv_label));
   listmv_init(&as->label_refs, sizeof(label_reference));
@@ -24,6 +24,12 @@ u8 asmv_parse_register(asmv *as) {
       !isalnum(asmv_peek2(as))) {
     as->index += 2;
     return (smvm_reg64 << 3) | reg_sp;
+  }
+
+  if (asmv_current(as) == 's' && asmv_peek(as) == 'o' &&
+      !isalnum(asmv_peek2(as))) {
+    as->index += 2;
+    return (smvm_reg64 << 3) | reg_so;
   }
 
   if (asmv_current(as) == 'a' || asmv_current(as) == 'b' ||
@@ -289,6 +295,10 @@ void asmv_assemble(asmv *as) {
 
   // first pass
   while (as->code[as->index] != '\0') {
+    // TODO also lex "let"?
+    if (asmv_current(as) == 'l' && asmv_peek(as) == 'e' &&
+        asmv_peek2(as) == 't' && !isalnum(as->code[as->index])) {}
+
     asmv_inst inst = asmv_lex_inst(as);
     if (inst.eof) break;
     if (!inst.label) {
@@ -359,7 +369,7 @@ void asmv_assemble(asmv *as) {
     const u8 num_ops = instruction_table[inst.code].num_ops;
 
     if (num_ops == 0) {
-      listmv_push(&as->bytecode, &inst.code);
+      listmv_push(&as->output.bytecode, &inst.code);
       continue;
     }
 
@@ -402,15 +412,26 @@ void asmv_assemble(asmv *as) {
       }
     }
 
-    listmv_push_array(&as->bytecode, primary_bytes, num_ops == 3 ? 4 : 3);
-    listmv_push_array(&as->bytecode, immediate_bytes, immediate_size);
+    listmv_push_array(&as->output.bytecode, primary_bytes,
+                      num_ops == 3 ? 4 : 3);
+    listmv_push_array(&as->output.bytecode, immediate_bytes, immediate_size);
     for (int i = 0; i < num_ops; i++) {
       asmv_operand op = inst.operands[i];
       if (op.data.type != asmv_str_type) continue;
-      listmv_push_array(&as->bytecode, op.data.str.data, op.data.str.len);
+      listmv_push_array(&as->output.bytecode, op.data.str.data,
+                        op.data.str.len);
       listmv_free(&op.data.str);
     }
   }
+
+  // append the header now
+  as->output.header = (smvm_header){
+      .version = smvm_version,
+      .header_flags = 0,          // TODO
+      .checksum = 0,              // TODO
+      .global_variables_len = 0,  // TODO
+      .code_len = as->output.bytecode.len,
+  };
 }
 
 void asmv_free(asmv *as) {

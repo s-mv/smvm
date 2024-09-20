@@ -91,6 +91,23 @@ void print_memory(void *arr, int num) {
   printf("\n");
 }
 
+u32 checksum_32bit(listmv(u8) memory, listmv(u8) bytecode) {
+  u32 checksum = 0;
+  for (int i = 0; i < memory.len; i++) {
+    checksum += *(u8 *)listmv_at(&memory, i);
+  }
+  for (int i = 0; i < bytecode.len; i++) {
+    checksum += *(u8 *)listmv_at(&bytecode, i);
+  }
+
+  return checksum;
+}
+
+bool checksum32bit_valid(listmv(u8) memory, listmv(u8) bytecode, u32 checksum) {
+  u32 current_checksum = checksum_32bit(memory, bytecode);
+  return current_checksum == checksum;
+}
+
 /* inline functions */
 
 void mov_mem(u8 *dest, u8 *src, u64 size) {
@@ -101,4 +118,3 @@ void mov_mem_reverse(u8 *dest, u8 *src, u64 size) {
   dest += size - 1;
   while (size--) *dest-- = *src++;
 }
-

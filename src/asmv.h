@@ -8,7 +8,11 @@ typedef struct asmv {
   listmv(asmv_inst) instructions;
   listmv(asmv_label) label_refs;
   listmv(label_reference) label_addrs;
-  listmv(u8) bytecode;
+  struct {
+    smvm_header header;
+    listmv(u8) memory;
+    listmv(u8) bytecode;
+  } output;
   u64 index;
   bool panic_mode;
 } asmv;
