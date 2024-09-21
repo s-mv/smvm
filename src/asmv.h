@@ -6,12 +6,15 @@
 typedef struct asmv {
   char *code;  // input
   listmv(asmv_inst) instructions;
-  listmv(asmv_label) label_refs;
-  listmv(label_reference) label_addrs;
+  listmv(asmv_label) labels;
+  listmv(label_reference) label_refs;
+  listmv(asmv_symtable) symtable;
+
   struct {
     smvm_header header;
     listmv(u8) memory;
     listmv(u8) bytecode;
+    listmv(smvm_syscall) syscalls;  // major TODO
   } output;
   u64 index;
   bool panic_mode;
@@ -34,7 +37,8 @@ typedef struct asmv_op_data {
     asmv_fnum_type,
     asmv_str_type,
     asmv_chr_type,
-    asmv_label_type
+    asmv_label_type,
+    asmv_pointer_type
   } type;
   union {
     smvm_register reg;
@@ -65,13 +69,15 @@ typedef struct asmv_inst {
   u64 index;
 } asmv_inst;
 
+// TODO, make a hash... trie... something (idk)
+// replace these structs with it
 typedef struct asmv_label {
-  listmv str;
+  listmv(char) str;
   u64 address;
 } asmv_label;
 
 typedef struct label_reference {
-  u64 inst_index;
+  u64 inst_index;  // index of instruction to be run
   u8 op_index;
 } label_reference;
 

@@ -7,8 +7,8 @@ void asmv_init(asmv *as) {
   as->panic_mode = false;
   listmv_init(&as->output.bytecode, sizeof(u8));
   listmv_init(&as->instructions, sizeof(asmv_inst));
-  listmv_init(&as->label_addrs, sizeof(asmv_label));
-  listmv_init(&as->label_refs, sizeof(label_reference));
+  listmv_init(&as->label_refs, sizeof(asmv_label));
+  listmv_init(&as->labels, sizeof(label_reference));
 }
 
 u8 asmv_parse_register(asmv *as) {
@@ -60,7 +60,6 @@ u8 asmv_parse_register(asmv *as) {
   return reg_none;
 }
 
-// TODO, floating point numbers
 asmv_op_data parse_number(asmv *as) {
   double num = 0.0;
   bool neg = false;
@@ -282,6 +281,7 @@ asmv_inst asmv_lex_inst(asmv *as) {
         as->code += offset;
       } else {
         // TODO edge cases, error handling
+        as->panic_mode = true;
       }
       inst.operands[j] = op;
     }
@@ -290,14 +290,71 @@ asmv_inst asmv_lex_inst(asmv *as) {
   return inst;
 }
 
+void handle_preprocessors(asmv *as) {
+  // let <label> <values>
+  // <label>  -> .character+
+  // <values> -> (digit | string | character)+ | ?
+  if (!strncmp(as->code + as->index, "let", 3) &&
+      !isalnum(as->code[as->index + 3])) {
+    as->index += 3;
+
+    // lex .<label>
+    while (isspace(asmv_current(as))) asmv_skip(as);
+    if (asmv_current(as) == '.') {
+      asmv_skip(as);
+      int offset = 0;
+      while (isalnum(as->code[as->index + offset])) offset++;
+      as->labels;
+      listmv(char) str;  // TODO, figure out what this is
+      char eof = '\0';
+      listmv_init(&str, sizeof(char));
+      listmv_push_array(&str, as->code + as->index, offset);
+      listmv_push(&str, &eof);
+      as->code += offset;
+
+      // I should probably just make this a function
+      // TODO? maybe?
+      while (isspace(asmv_current(as))) asmv_skip(as);
+    } else {
+      /* panic mode TODO */
+    }
+
+    // store data to memory
+    // arrays, strings, everything
+    // commas indicate next element
+    do {
+      while (isspace(asmv_current(as))) asmv_skip(as);
+      char current = 0;
+      if (isdigit(asmv_current(as)) || asmv_current(as))
+        if (asmv_current(as) == '"') {
+          asmv_skip(as);
+          u64 index = as->index;
+          while (asmv_current(as) != '"') asmv_skip(as);
+          // TODO error handling
+          asmv_skip(as);
+        }
+
+      while (isspace(asmv_current(as))) asmv_skip(as);
+      if (asmv_current(as) != ',') break;
+    } while (true);
+
+    return;
+  }
+
+  if (!strncmp(as->code + as->index, "import", 6)) {}
+
+  if (!strncmp(as->code + as->index, "interface", 9) &&
+      !isalnum(as->code[as->index + 3])) {
+    return;  // TODO
+  }
+}
+
 void asmv_assemble(asmv *as) {
   u64 offset = 0;  // track offset
 
   // first pass
   while (as->code[as->index] != '\0') {
-    // TODO also lex "let"?
-    if (asmv_current(as) == 'l' && asmv_peek(as) == 'e' &&
-        asmv_peek2(as) == 't' && !isalnum(as->code[as->index])) {}
+    handle_preprocessors(as);  // at every step, first handle the preprocessors
 
     asmv_inst inst = asmv_lex_inst(as);
     if (inst.eof) break;
@@ -316,7 +373,7 @@ void asmv_assemble(asmv *as) {
       }
     } else {
       asmv_label label = {.address = offset, .str = inst.str};
-      listmv_push(&as->label_addrs, &label);
+      listmv_push(&as->label_refs, &label);
     }
 
     listmv_push(&as->instructions, &inst);
@@ -326,17 +383,17 @@ void asmv_assemble(asmv *as) {
     for (int i = 0; i < instruction_table[inst.code].num_ops; i++)
       if (inst_ref->operands[i].data.type == asmv_label_type) {
         label_reference ref = {as->instructions.len - 1, i};
-        listmv_push(&as->label_refs, &ref);
+        listmv_push(&as->labels, &ref);
         continue;
       }
   }
 
   // check labels
-  for (int i = 0; i < as->label_addrs.len; i++) {
-    asmv_label label = *(asmv_label *)listmv_at(&as->label_addrs, i);
+  for (int i = 0; i < as->label_refs.len; i++) {
+    asmv_label label = *(asmv_label *)listmv_at(&as->label_refs, i);
     bool matched = false;
-    for (int j = 0; j < as->label_refs.len; j++) {
-      label_reference *ref = listmv_at(&as->label_refs, j);
+    for (int j = 0; j < as->labels.len; j++) {
+      label_reference *ref = listmv_at(&as->labels, j);
       asmv_inst *inst = listmv_at(&as->instructions, ref->inst_index);
       asmv_operand *op = &inst->operands[ref->op_index];
       if (op->data.str.cap && !strcmp(label.str.data, op->data.str.data)) {
@@ -436,8 +493,8 @@ void asmv_assemble(asmv *as) {
 
 void asmv_free(asmv *as) {
   listmv_free(&as->instructions);
+  listmv_free(&as->labels);
   listmv_free(&as->label_refs);
-  listmv_free(&as->label_addrs);
   // bytecode is now owned by a vm
   // so no need to free it
 }

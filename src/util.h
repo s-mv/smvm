@@ -19,7 +19,6 @@ typedef int8_t i8;
 typedef double f64;
 typedef float f32;
 
-/*** util ***/
 typedef struct listmv {
   void *data;
   u64 len;
@@ -28,6 +27,12 @@ typedef struct listmv {
 } listmv;
 
 #define listmv(_type) listmv
+
+// todo
+typedef struct triemv triemv;
+
+typedef struct triemv {
+} triemv;
 
 void listmv_init(listmv *ls, long size);
 void listmv_push(listmv *ls, void *data);

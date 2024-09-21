@@ -4,8 +4,8 @@
 #include "util.h"
 
 // version -> ff.fff.fff
-// current version -> 0.1.0
-#define smvm_version (0x00001000)
+// current version -> 0.1.1
+#define smvm_version (0x00001001)
 #define smvm_register_num (8)
 
 typedef struct smvm_header {
