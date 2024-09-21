@@ -6,19 +6,37 @@ on:
   pull_request:
     branches: [ "main" ]
 
+env:
+  VERSION: 0.1.1
+
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  build-linux:
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Install Make
-        if: matrix.os == 'windows-latest'
+        run: sudo apt-get install make
+
+      - name: Run Makefile
+        run: make
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: example-linux
+          path: out/example
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Make
         run: choco install make
 
       - name: Run Makefile
@@ -27,30 +45,11 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: build-${{ matrix.os }}
-          path: path/to/your/built/artifact
-
-  get-version:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.get_version.outputs.version }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Get version from file
-        id: get_version
-        run: |
-          if [ -f version.txt ]; then
-            echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
-          else
-            echo "Error: version.txt not found"
-            exit 1
-          fi
+          name: example-windows
+          path: out/example
 
   release:
-    needs: [build, get-version]
+    needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
 
     steps:
@@ -66,27 +65,33 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ needs.get-version.outputs.version }}
-        release_name: Release ${{ needs.get-version.outputs.version }}
+        tag_name: v${{ env.VERSION }}
+        release_name: Release ${{ env.VERSION }}
         draft: false
         prerelease: false
+        body: |
+          Release ${{ env.VERSION }}
+          
+          Changes in this Release:
+          - This is the first proper release!
+        generate_release_notes: true
 
-    - name: Upload Release Assets
+    - name: Upload Release Asset (Linux)
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./build-ubuntu-latest/your_artifact_name
-        asset_name: your_artifact_name_linux
+        asset_path: ./example-linux/example
+        asset_name: main-linux
         asset_content_type: application/octet-stream
 
-    - name: Upload Release Assets (Windows)
+    - name: Upload Release Asset (Windows)
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./build-windows-latest/your_artifact_name
-        asset_name: your_artifact_name_windows
+        asset_path: ./example-windows/example
+        asset_name: main-win
         asset_content_type: application/octet-stream
