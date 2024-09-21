@@ -29,27 +29,28 @@ jobs:
           name: example-linux
           path: out/example
 
-  build-windows:
-    runs-on: windows-latest
+  # build-windows:
+  #   runs-on: windows-latest
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Install Make
-        run: choco install make
+  #     - name: Install Make
+  #       run: choco install make
 
-      - name: Run Makefile
-        run: make
+  #     - name: Run Makefile
+  #       run: make
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: example-windows
-          path: out/example
+  #     - name: Upload artifact
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         name: example-windows
+  #         path: out/example
 
   release:
-    needs: [build-linux, build-windows]
+    # needs: [build-linux, build-windows]
+    needs: [build-linux]
     runs-on: ubuntu-latest
 
     steps:
