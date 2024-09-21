@@ -3,10 +3,17 @@
 
 #include "util.h"
 
+// version -> ff.fff.fff
+// current version -> 0.1.0
+#define smvm_version (0x00001000)
 #define smvm_register_num (8)
 
 typedef struct smvm_header {
-  /* data */
+  u16 version;
+  u16 header_flags;  // enum header_flag
+  u32 checksum;      // checksum of data + code
+  u64 global_variables_len;
+  u64 code_len;
 } smvm_header;
 
 typedef struct smvm {
@@ -106,6 +113,10 @@ typedef enum smvm_flag {
   flag_s = 1 << 3,  // sign
   flag_z = 1 << 4,  // zero
 } smvm_flag;
+
+typedef enum smvm_header_flag {
+  flag_interface = 1,
+} smvm_header_flag;
 
 typedef enum smvm_mode {
   // mode takes 3 bits however only 2 bits are present here and the reason is

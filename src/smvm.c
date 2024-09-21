@@ -48,7 +48,8 @@ void smvm_assemble(smvm *vm, char *code) {
   assembler.code = code;
   asmv_assemble(&assembler);
   if (vm->bytecode.data != NULL) listmv_free(&vm->bytecode);
-  vm->bytecode = assembler.bytecode;  // ownership to vm
+  vm->bytecode = assembler.output.bytecode;  // ownership to vm
+  vm->header = assembler.output.header;
   asmv_free(&assembler);
 }
 
@@ -131,13 +132,13 @@ void smvm_free(smvm *vm) {
 }
 
 void smvm_disassemble(smvm *vm, char *code) {
-  dsmv dis;
-  dsmv_init(&dis);
-  dis.bytecode = vm->bytecode;
-  dsmv_disassemble();
-  // code = malloc(dis.code.len);
-  strncpy(code, (char *)dis.code.data, dis.code.len);
-  dsmv_free(&dis);
+  dsmv ds;
+  dsmv_init(&ds);
+  ds.bytecode = vm->bytecode;
+  dsmv_disassemble(&ds);
+  // code = malloc(ds.code.len);
+  strncpy(code, (char *)ds.code.data, ds.code.len);
+  dsmv_free(&ds);
 }
 
 void update_stack_pointer(smvm *vm) { vm->registers[reg_sp] = vm->stack.len; }
@@ -362,7 +363,12 @@ void putu_fn(smvm *vm) {
   printf("%lu\n", data);
   smvm_ip_inc(vm, vm->cache.offset);
 }
-void putf_fn(smvm *vm) {}
+void putf_fn(smvm *vm) {
+  f64 data = 0;
+  mov_mem((u8 *)&data, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
+  printf("%lf\n", data);
+  smvm_ip_inc(vm, vm->cache.offset);
+}
 void puts_fn(smvm *vm) {
   smvm_ip_inc(vm, vm->cache.offset);
   char *str = (char *)listmv_at(&vm->bytecode, vm->registers[reg_ip]);

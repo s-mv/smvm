@@ -1,4 +1,4 @@
-mov ra 2
-mov @ra 2
+mov ra 69
+mov @ra 420
 puti @ra
 halt

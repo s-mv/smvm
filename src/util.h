@@ -40,6 +40,8 @@ void listmv_free(listmv *ls);
 i64 parse_signed(u64 unum, u8 width);
 // just a helper for better debugging
 void print_memory(void *arr, int num);
+u32 checksum_32bit(listmv(u8) memory, listmv(u8) bytecode);
+bool checksum32bit_valid(listmv(u8) memory, listmv(u8) bytecode, u32 checksum);
 void mov_mem(u8 *dest, u8 *src, u64 size);
 void mov_mem_reverse(u8 *dest, u8 *src, u64 size);
 

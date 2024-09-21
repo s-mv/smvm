@@ -5,8 +5,7 @@ void dsmv_init(dsmv *ds) {
   ds->index = 0;
 }
 
-void dsmv_disassemble() {
-  // TODO
+void dsmv_disassemble(dsmv *ds) {
 }
 
 /* vm - disassembler (dsmv) - functions */

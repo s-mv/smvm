@@ -10,7 +10,7 @@ typedef struct dsmv {
 } dsmv;
 
 void dsmv_init(dsmv *ds);
-void dsmv_disassemble();
+void dsmv_disassemble(dsmv *ds);
 void dsmv_free(dsmv *ds);
 
 #endif
