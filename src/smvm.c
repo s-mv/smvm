@@ -15,8 +15,7 @@ instruction_info instruction_table[instruction_table_len] = {
     [op_divf] = {"divf", 4, 3, divf_fn}, [op_div] = {"div", 3, 3, div_fn},
     [op_inc] = {"inc", 3, 1, inc_fn},    [op_dec] = {"dec", 3, 1, dec_fn},
     [op_and] = {"and", 3, 3, and_fn},    [op_or] = {"or", 2, 3, or_fn},
-    [op_xor] = {"xor", 3, 3, xor_fn},    [op_shli] = {"shli", 4, 3, shli_fn},
-    [op_shl] = {"shl", 3, 3, shl_fn},    [op_shri] = {"shri", 4, 3, shri_fn},
+    [op_xor] = {"xor", 3, 3, xor_fn},    [op_shl] = {"shl", 3, 3, shl_fn},
     [op_shr] = {"shr", 3, 3, shr_fn},    [op_slc] = {"slc", 3, 3, slc_fn},
     [op_src] = {"src", 3, 3, src_fn},    [op_jmp] = {"jmp", 3, 1, jmp_fn},
     [op_je] = {"je", 2, 3, je_fn},       [op_jne] = {"jne", 3, 3, jne_fn},
@@ -47,8 +46,12 @@ void smvm_assemble(smvm *vm, char *code) {
   asmv_init(&assembler);
   assembler.code = code;
   asmv_assemble(&assembler);
-  if (vm->bytecode.data != NULL) listmv_free(&vm->bytecode);
-  vm->bytecode = assembler.output.bytecode;  // ownership to vm
+  if (vm->bytecode.data != NULL)
+    listmv_free(&vm->bytecode);
+  vm->bytecode = assembler.output.bytecode; // ownership to vm
+  if (vm->memory.data != NULL)
+    listmv_free(&vm->memory);
+  vm->memory = assembler.output.memory;
   vm->header = assembler.output.header;
   asmv_free(&assembler);
 }
@@ -75,52 +78,55 @@ void smvm_execute(smvm *vm) {
         u8 byte = (i == 2) ? 3 : 1;
         u8 bit_shift = (i == 2) ? 5 : (5 - i);
         vm->cache.widths[i] = 1 << vm->cache.widths[i];
-        if ((inst[byte] >> bit_shift) & 1) offsets[i] = inst[code_width++];
+        if ((inst[byte] >> bit_shift) & 1)
+          offsets[i] = inst[code_width++];
 
         switch (inst[i] >> 6) {
-          case mode_register:
-            vm->cache.pointers[i] = &vm->registers[reg[i]];
-            break;
-          case mode_indirect:
-            listmv_grow(&vm->memory, vm->registers[reg[i]] +
-                                         vm->cache.widths[i] + offsets[i] + 1);
-            vm->cache.pointers[i] =
-                listmv_at(&vm->memory, vm->registers[reg[i]]);
-            if (offsets[i] != 0) {
-              u8 *ptr = (u8 *)vm->cache.pointers[i];
-              ptr -= offsets[i];
-            }
-            break;
-          case mode_direct: {
-            u8 size = 1 << (reg[i] & 3);
-            u64 address = 0;
-            // reg also holds size
-            mov_mem((u8 *)&address, inst + code_width, size);
-            listmv_grow(&vm->memory, address + vm->cache.widths[i] + 1);
-            code_width += size;
-            vm->cache.pointers[i] = listmv_at(&vm->memory, address);
-            break;
+        case mode_register:
+          vm->cache.pointers[i] = &vm->registers[reg[i]];
+          break;
+        case mode_indirect:
+          listmv_grow(&vm->memory, vm->registers[reg[i]] + vm->cache.widths[i] +
+                                       offsets[i] + 1);
+          vm->cache.pointers[i] = listmv_at(&vm->memory, vm->registers[reg[i]]);
+          if (offsets[i] != 0) {
+            u8 *ptr = (u8 *)vm->cache.pointers[i];
+            ptr -= offsets[i];
           }
-          case mode_immediate:
-            u8 size = 1 << (reg[i] & 3);
-            vm->cache.data[i] = 0;
-            if (vm->little_endian)
-              mov_mem_reverse((u8 *)(&vm->cache.data[i]), inst + code_width,
-                              size);
-            else mov_mem((u8 *)(&vm->cache.data[i]), inst + code_width, size);
-            vm->cache.data[i] += offsets[i];
-            code_width += size;
-            vm->cache.pointers[i] = &vm->cache.data[i];
-            break;
-          default:  // idk what this is for
-            break;
+          break;
+        case mode_direct: {
+          u8 size = 1 << (reg[i] & 3);
+          u64 address = 0;
+          // reg also holds size
+          mov_mem((u8 *)&address, inst + code_width, size);
+          listmv_grow(&vm->memory, address + vm->cache.widths[i] + 1);
+          code_width += size;
+          vm->cache.pointers[i] = listmv_at(&vm->memory, address);
+          break;
+        }
+        case mode_immediate:
+          u8 size = 1 << (reg[i] & 3);
+          vm->cache.data[i] = 0;
+          if (vm->little_endian)
+            mov_mem_reverse((u8 *)(&vm->cache.data[i]), inst + code_width,
+                            size);
+          else
+            mov_mem((u8 *)(&vm->cache.data[i]), inst + code_width, size);
+          vm->cache.data[i] += offsets[i];
+          code_width += size;
+          vm->cache.pointers[i] = &vm->cache.data[i];
+          break;
+        default: // idk what this is for
+          break;
         }
       }
       vm->cache.offset = code_width;
       instruction_table[code].fn(vm);
+      smvm_adjust_flags(vm);
     }
 
-    if (smvm_get_flag(vm, flag_t)) break;  // TODO, so much
+    if (smvm_get_flag(vm, flag_t))
+      break; // TODO, so much
   }
 }
 
@@ -144,16 +150,22 @@ void smvm_disassemble(smvm *vm, char *code) {
 void update_stack_pointer(smvm *vm) { vm->registers[reg_sp] = vm->stack.len; }
 
 smvm_data_width min_space_neededu(u64 data) {
-  if ((data >> 8) == 0) return smvm_reg8;
-  if ((data >> 16) == 0) return smvm_reg16;
-  if ((data >> 32) == 0) return smvm_reg32;
+  if ((data >> 8) == 0)
+    return smvm_reg8;
+  if ((data >> 16) == 0)
+    return smvm_reg16;
+  if ((data >> 32) == 0)
+    return smvm_reg32;
   return smvm_reg64;
 }
 
 smvm_data_width min_space_needed(i64 data) {
-  if ((data >> 7) == 0 || (data >> 7) == -1) return smvm_reg8;
-  if ((data >> 15) == 0 || (data >> 15) == -1) return smvm_reg16;
-  if ((data >> 31) == 0 || (data >> 31) == -1) return smvm_reg32;
+  if ((data >> 7) == 0 || (data >> 7) == -1)
+    return smvm_reg8;
+  if ((data >> 15) == 0 || (data >> 15) == -1)
+    return smvm_reg16;
+  if ((data >> 31) == 0 || (data >> 31) == -1)
+    return smvm_reg32;
   return smvm_reg64;
 }
 
@@ -168,6 +180,8 @@ u16 smvm_get_flag(smvm *vm, smvm_flag flag) { return vm->flags & flag; }
 void smvm_set_flag(smvm *vm, smvm_flag flag) { vm->flags |= flag; }
 
 void smvm_reset_flag(smvm *vm, smvm_flag flag) { vm->flags &= ~flag; }
+
+void smvm_adjust_flags(smvm *vm) { /* TODO */ };
 
 /* vm - opcode functions - implementation */
 
@@ -290,20 +304,21 @@ void shr_fn(smvm *vm) {
   mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
   smvm_ip_inc(vm, vm->cache.offset);
 }
-void shli_fn(smvm *vm) {}
-void shri_fn(smvm *vm) {}
-void slc_fn(smvm *vm) {}
-void src_fn(smvm *vm) {}
+void slc_fn(smvm *vm) { /* TODO */ }
+void src_fn(smvm *vm) { /* TODO */ }
 void jmp_fn(smvm *vm) {
   vm->registers[reg_ip] = 0;
   mov_mem((u8 *)&vm->registers[reg_ip], (u8 *)vm->cache.pointers[0],
           vm->cache.widths[0]);
 }
 void je_fn(smvm *vm) {
-  if (*vm->cache.pointers[0] != *vm->cache.pointers[1]) {
-    smvm_ip_inc(vm, 1);
+  i64 left = 0, right = 0;
+  mov_mem((u8 *)&left, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
+  mov_mem((u8 *)&right, (u8 *)vm->cache.pointers[1], vm->cache.widths[1]);
+  if (left != right) {
+    smvm_ip_inc(vm, vm->cache.offset);
     return;
-  }  // else
+  } // else
   vm->registers[reg_ip] = 0;
   mov_mem((u8 *)&vm->registers[reg_ip], (u8 *)vm->cache.pointers[2],
           vm->cache.widths[2]);
@@ -315,12 +330,23 @@ void jne_fn(smvm *vm) {
   if (left == right) {
     smvm_ip_inc(vm, vm->cache.offset);
     return;
-  }  // else
+  } // else
   vm->registers[reg_ip] = 0;
   mov_mem((u8 *)&vm->registers[reg_ip], (u8 *)vm->cache.pointers[2],
           vm->cache.widths[2]);
 }
-void jl_fn(smvm *vm) {}
+void jl_fn(smvm *vm) {
+  i64 left = 0, right = 0;
+  mov_mem((u8 *)&left, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
+  mov_mem((u8 *)&right, (u8 *)vm->cache.pointers[1], vm->cache.widths[1]);
+  if (left < right) {
+    smvm_ip_inc(vm, vm->cache.offset);
+    return;
+  } // else
+  vm->registers[reg_ip] = 0;
+  mov_mem((u8 *)&vm->registers[reg_ip], (u8 *)vm->cache.pointers[2],
+          vm->cache.widths[2]);
+}
 void loop_fn(smvm *vm) {
   stack_push(vm, (u8 *)&vm->registers[reg_ip], 8);
   vm->registers[reg_ip] = 0;
@@ -344,7 +370,7 @@ void pop_fn(smvm *vm) {
   smvm_ip_inc(vm, vm->cache.offset);
 }
 
-void scall(smvm *vm) {}
+void scall(smvm *vm) { /* TODO */ }
 
 void getu_fn(smvm *vm) {
   u64 input;
@@ -354,26 +380,27 @@ void getu_fn(smvm *vm) {
 }
 void puti_fn(smvm *vm) {
   i64 data = parse_signed(*vm->cache.pointers[0], vm->cache.widths[0]);
-  printf("%li\n", data);
+  printf("%li", data);
   smvm_ip_inc(vm, vm->cache.offset);
 }
 void putu_fn(smvm *vm) {
   u64 data = 0;
   mov_mem((u8 *)&data, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
-  printf("%lu\n", data);
+  printf("%lu", data);
   smvm_ip_inc(vm, vm->cache.offset);
 }
 void putf_fn(smvm *vm) {
   f64 data = 0;
   mov_mem((u8 *)&data, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
-  printf("%lf\n", data);
+  printf("%lf", data);
   smvm_ip_inc(vm, vm->cache.offset);
 }
 void puts_fn(smvm *vm) {
   smvm_ip_inc(vm, vm->cache.offset);
   char *str = (char *)listmv_at(&vm->bytecode, vm->registers[reg_ip]);
   u64 len = 0;
-  while (str[len] != '\0') len++;
+  while (str[len] != '\0')
+    len++;
   len++;
   printf("%s", str);
   fflush(stdout);

@@ -1,0 +1,11 @@
+puts "Addition doer (advanced math, beware)\n"
+puts "Enter the 1st number: "
+getu ra
+puts "Enter the 2nd number: "
+getu rb
+
+add rc ra rb
+
+puts "Your output is "
+putu rc
+puts "!\n"

@@ -8,7 +8,6 @@ typedef struct asmv {
   listmv(asmv_inst) instructions;
   listmv(asmv_label) labels;
   listmv(label_reference) label_refs;
-  listmv(asmv_symtable) symtable;
 
   struct {
     smvm_header header;
@@ -70,15 +69,16 @@ typedef struct asmv_inst {
 } asmv_inst;
 
 // TODO, make a hash... trie... something (idk)
-// replace these structs with it
+// then replace these structs with it
 typedef struct asmv_label {
   listmv(char) str;
   u64 address;
+  bool location;  // if true, it's not pointing to memory
 } asmv_label;
 
 typedef struct label_reference {
   u64 inst_index;  // index of instruction to be run
-  u8 op_index;
+  u8 op_index;     // index of operand of the instruction
 } label_reference;
 
 void asmv_init(asmv *as);

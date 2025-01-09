@@ -6,6 +6,7 @@ void asmv_init(asmv *as) {
   as->index = 0;
   as->panic_mode = false;
   listmv_init(&as->output.bytecode, sizeof(u8));
+  listmv_init(&as->output.memory, sizeof(u8));
   listmv_init(&as->instructions, sizeof(asmv_inst));
   listmv_init(&as->label_refs, sizeof(asmv_label));
   listmv_init(&as->labels, sizeof(label_reference));
@@ -290,12 +291,13 @@ asmv_inst asmv_lex_inst(asmv *as) {
   return inst;
 }
 
+// MAJOR TODO
 void handle_preprocessors(asmv *as) {
-  // let <label> <values>
-  // <label>  -> .character+
-  // <values> -> (digit | string | character)+ | ?
   if (!strncmp(as->code + as->index, "let", 3) &&
       !isalnum(as->code[as->index + 3])) {
+    // 1. let <label> <values>
+    //    <label>  -> .character+
+    //    <values> -> (digit | string | character)+ | ?
     as->index += 3;
 
     // lex .<label>
@@ -304,13 +306,20 @@ void handle_preprocessors(asmv *as) {
       asmv_skip(as);
       int offset = 0;
       while (isalnum(as->code[as->index + offset])) offset++;
-      as->labels;
-      listmv(char) str;  // TODO, figure out what this is
+      listmv(char) str;  // ownership to `as`
       char eof = '\0';
       listmv_init(&str, sizeof(char));
       listmv_push_array(&str, as->code + as->index, offset);
       listmv_push(&str, &eof);
       as->code += offset;
+
+      asmv_label label = {
+          .address = as->output.memory.len,
+          .str = str,
+          .location = false,
+      };
+
+      listmv_push(&as->labels, &label);
 
       // I should probably just make this a function
       // TODO? maybe?
@@ -325,14 +334,17 @@ void handle_preprocessors(asmv *as) {
     do {
       while (isspace(asmv_current(as))) asmv_skip(as);
       char current = 0;
-      if (isdigit(asmv_current(as)) || asmv_current(as))
-        if (asmv_current(as) == '"') {
-          asmv_skip(as);
-          u64 index = as->index;
-          while (asmv_current(as) != '"') asmv_skip(as);
-          // TODO error handling
-          asmv_skip(as);
-        }
+      if (isdigit(asmv_current(as)) ||
+          (asmv_current(as) == '-' && isdigit(asmv_peek(as)))) {
+        asmv_op_data num = parse_number(as);
+        listmv_push(&as->output.memory, &num.num);
+      } else if (asmv_current(as) == '"') {
+        asmv_skip(as);
+        u64 index = as->index;
+        while (asmv_current(as) != '"') asmv_skip(as);
+        // TODO error handling
+        asmv_skip(as);
+      }
 
       while (isspace(asmv_current(as))) asmv_skip(as);
       if (asmv_current(as) != ',') break;
@@ -341,12 +353,8 @@ void handle_preprocessors(asmv *as) {
     return;
   }
 
-  if (!strncmp(as->code + as->index, "import", 6)) {}
-
-  if (!strncmp(as->code + as->index, "interface", 9) &&
-      !isalnum(as->code[as->index + 3])) {
-    return;  // TODO
-  }
+  // TODO
+  if (!strncmp(as->code + as->index, "extern", 6)) {}
 }
 
 void asmv_assemble(asmv *as) {
@@ -354,7 +362,9 @@ void asmv_assemble(asmv *as) {
 
   // first pass
   while (as->code[as->index] != '\0') {
-    handle_preprocessors(as);  // at every step, first handle the preprocessors
+    // this is TODO
+    // at every step, first handle the preprocessors
+    handle_preprocessors(as);
 
     asmv_inst inst = asmv_lex_inst(as);
     if (inst.eof) break;
@@ -372,7 +382,11 @@ void asmv_assemble(asmv *as) {
         }
       }
     } else {
-      asmv_label label = {.address = offset, .str = inst.str};
+      asmv_label label = {
+          .address = offset,
+          .str = inst.str,
+          .location = true,
+      };
       listmv_push(&as->label_refs, &label);
     }
 
@@ -391,6 +405,8 @@ void asmv_assemble(asmv *as) {
   // check labels
   for (int i = 0; i < as->label_refs.len; i++) {
     asmv_label label = *(asmv_label *)listmv_at(&as->label_refs, i);
+    if (!label.location) continue;
+
     bool matched = false;
     for (int j = 0; j < as->labels.len; j++) {
       label_reference *ref = listmv_at(&as->labels, j);

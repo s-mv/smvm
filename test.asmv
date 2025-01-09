@@ -1,2 +1,3 @@
-putf 2.4
+puts "what\n"
 halt
+# what

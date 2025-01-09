@@ -4,14 +4,14 @@
 #include "util.h"
 
 // version -> ff.fff.fff
-// current version -> 0.1.1
-#define smvm_version (0x00001001)
+// current version -> 0.1.2
+#define smvm_version (0x00001002)
 #define smvm_register_num (8)
 
 typedef struct smvm_header {
   u16 version;
-  u16 header_flags;  // enum header_flag
-  u32 checksum;      // checksum of data + code
+  u16 header_flags; // enum header_flag
+  u32 checksum;     // checksum of data + code
   u64 global_variables_len;
   u64 code_len;
 } smvm_header;
@@ -20,7 +20,7 @@ typedef struct smvm {
   listmv(u8) memory;
   listmv(u8) bytecode;
   listmv(u8) stack;
-  listmv(smvm_syscall) syscalls;  // natives
+  listmv(smvm_syscall) syscalls; // natives
   smvm_header header;
   i64 registers[smvm_register_num];
   u8 flags;
@@ -66,25 +66,23 @@ typedef enum smvm_opcode {
   op_xor = 0b10110,
   op_shl = 0b10111,
   op_shr = 0b11000,
-  op_shli = 0b11001,
-  op_shri = 0b11010,
-  op_slc = 0b11011,
-  op_src = 0b11100,
-  op_jmp = 0b11101,
-  op_je = 0b11110,
-  op_jne = 0b11111,
-  op_jl = 0b100000,
-  op_loop = 0b100001,
-  op_call = 0b100010,
-  op_ret = 0b100011,
-  op_push = 0b100100,
-  op_pop = 0b100101,
-  op_scall = 0b100110,
-  op_getu = 0b100111,
-  op_puti = 0b101000,
-  op_putu = 0b101001,
-  op_putf = 0b101010,
-  op_puts = 0b101011,
+  op_slc = 0b11001,
+  op_src = 0b11010,
+  op_jmp = 0b11011,
+  op_je = 0b11100,
+  op_jne = 0b11101,
+  op_jl = 0b11110,
+  op_loop = 0b11111,
+  op_call = 0b10000,
+  op_ret = 0b100001,
+  op_push = 0b100010,
+  op_pop = 0b100011,
+  op_scall = 0b100100,
+  op_getu = 0b100101,
+  op_puti = 0b100110,
+  op_putu = 0b100111,
+  op_putf = 0b101000,
+  op_puts = 0b101001,
 } smvm_opcode;
 
 typedef enum smvm_register {
@@ -92,10 +90,10 @@ typedef enum smvm_register {
   reg_b = 0b001,
   reg_c = 0b010,
   reg_d = 0b011,
-  reg_fl = 0b100,  // flag register
-  reg_sp = 0b101,  // stack pointer
-  reg_ip = 0b110,  // instruction pointer
-  reg_so = 0b111,  // syscall offset register (a lifesaver)
+  reg_fl = 0b100, // flag register
+  reg_sp = 0b101, // stack pointer
+  reg_ip = 0b110, // instruction pointer
+  reg_so = 0b111, // syscall offset register (a lifesaver)
   reg_none = 0b1000,
 } smvm_register;
 
@@ -107,11 +105,11 @@ typedef enum smvm_data_width {
 } smvm_data_width;
 
 typedef enum smvm_flag {
-  flag_o = 1,       // overflow
-  flag_d = 1 << 1,  // direction
-  flag_t = 1 << 2,  // trap ~TODO add errors~
-  flag_s = 1 << 3,  // sign
-  flag_z = 1 << 4,  // zero
+  flag_o = 1,      // overflow
+  flag_d = 1 << 1, // direction
+  flag_t = 1 << 2, // trap ~TODO add errors~
+  flag_s = 1 << 3, // sign
+  flag_z = 1 << 4, // zero
 } smvm_flag;
 
 typedef enum smvm_header_flag {
@@ -124,10 +122,10 @@ typedef enum smvm_mode {
   // 0th bit indicates if data is appended   (1 = appended)
   // 1st bit indicates if register is needed (1 = needed)
   // 2nd bit indicates if offset is stored   (1 = yes)
-  mode_register = 0b00,   // r
-  mode_indirect = 0b01,   // x
-  mode_immediate = 0b10,  // i
-  mode_direct = 0b11,     // d
+  mode_register = 0b00,  // r
+  mode_indirect = 0b01,  // x
+  mode_immediate = 0b10, // i
+  mode_direct = 0b11,    // d
   // implicit type is quite literally, implicit; implicit instructions are
   // simply run without checking the "mode" first, unlike other instructions
   // mode_implicit = 0b111,  // TODO remove?
@@ -155,6 +153,7 @@ u8 *smvm_fetch_inst_addr(smvm *vm);
 u16 smvm_get_flag(smvm *vm, smvm_flag flag);
 void smvm_set_flag(smvm *vm, smvm_flag flag);
 void smvm_reset_flag(smvm *vm, smvm_flag flag);
+void smvm_adjust_flags(smvm *vm);
 
 /* operation function declarations */
 // this feels so redundant, if only I wasn't lazy and wrote a macro or

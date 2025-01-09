@@ -1,0 +1,23 @@
+puts "Enter a number!"
+puti ra
+push ra
+call .fact
+pop  ra
+puts ra
+
+# factorial definition
+#
+# f(1) = 1
+# f(n) = f(n - 1) * n
+
+.fact
+  pop ra
+  jne rc 1 .notone
+  # if n == 1
+    push 1
+    ret
+  # else
+  push ra
+  mov rb ra
+  dec ra
+  call .fact
