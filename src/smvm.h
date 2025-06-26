@@ -79,7 +79,7 @@ typedef enum smvm_opcode : u8 {
   op_ret = 0b100011,
   op_push = 0b100100,
   op_pop = 0b100101,
-  op_import = 0b100110,
+  op_extern = 0b100110,
   op_scall = 0b100111,
   op_getu = 0b101000,
   op_puti = 0b101001,
@@ -135,15 +135,15 @@ typedef enum smvm_mode {
 } smvm_mode;
 
 void smvm_init(smvm *vm);
-void smvm_register_syscall(smvm *vm, void *fn, char *fn_name);
+void smvm_link_call(smvm *vm, void (*fn)(smvm *), const char *name);
 void smvm_assemble(smvm *vm, char *code);
 void smvm_execute(smvm *vm);
 void smvm_disassemble(smvm *vm, char *code);
 void smvm_free(smvm *vm);
 
 /* some helpers */
-void stack_push(smvm *vm, u8 *value, u64 width);
-u8 *stack_pop(smvm *vm, u64 width);
+void smvm_push(smvm *vm, u8 *value, u64 width);
+u8 *smvm_pop(smvm *vm, u64 width);
 bool is_little_endian();
 
 /* helpers */

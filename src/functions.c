@@ -151,32 +151,64 @@ void jne_fn(smvm *vm) {
 }
 void jl_fn(smvm *vm) {}
 void loop_fn(smvm *vm) {
-  stack_push(vm, (u8 *)&vm->registers[reg_ip], 8);
+  smvm_push(vm, (u8 *)&vm->registers[reg_ip], 8);
   vm->registers[reg_ip] = 0;
   smvm_ip_inc(vm, vm->cache.offset);
 }
 void call_fn(smvm *vm) {
   u64 addr = vm->registers[reg_ip] + vm->cache.offset;
-  stack_push(vm, (u8 *)&addr, 8);
+  smvm_push(vm, (u8 *)&addr, 8);
   vm->registers[reg_ip] = 0;
   mov_mem((u8 *)&vm->registers[reg_ip], (u8 *)vm->cache.pointers[0],
           vm->cache.widths[0]);
 }
-void ret_fn(smvm *vm) { vm->registers[reg_ip] = *(i64 *)stack_pop(vm, 8); }
+void ret_fn(smvm *vm) { vm->registers[reg_ip] = *(i64 *)smvm_pop(vm, 8); }
 void push_fn(smvm *vm) {
-  stack_push(vm, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
+  smvm_push(vm, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
   smvm_ip_inc(vm, vm->cache.offset);
 }
 void pop_fn(smvm *vm) {
-  u8 *data = stack_pop(vm, vm->cache.widths[0]);
+  u8 *data = smvm_pop(vm, vm->cache.widths[0]);
   mov_mem((u8 *)vm->cache.pointers[0], data, vm->cache.widths[0]);
   smvm_ip_inc(vm, vm->cache.offset);
 }
+void extern_fn(smvm *vm) {
+  smvm_ip_inc(vm, vm->cache.offset);
+  char *name = (char *)listmv_at(&vm->bytecode, vm->registers[reg_ip]);
+  u64 len = strlen(name) + 1;
 
-void extern_fn(smvm *vm) {}
+  smvm_ip_inc(vm, len);
+  for (u64 i = 0; i < vm->syscalls.len; i++) {
+    smvm_syscall *syscall = (smvm_syscall *)listmv_at(&vm->syscalls, i);
+    if (strcmp(syscall->name, name) == 0) { return; }
+  }
 
-void scall_fn(smvm *vm) {}
+  smvm_syscall syscall = {
+      .id = vm->syscalls.len,
+      .name = malloc(len * sizeof(char)),
+      .function = NULL,
+  };
+  strcpy(syscall.name, name);
 
+  listmv_push(&vm->syscalls, &syscall);
+}
+void scall_fn(smvm *vm) {
+  smvm_ip_inc(vm, vm->cache.offset);
+  char *name = (char *)listmv_at(&vm->bytecode, vm->registers[reg_ip]);
+  u64 len = strlen(name) + 1;
+
+  for (u64 i = 0; i < vm->syscalls.len; i++) {
+    smvm_syscall *syscall = (smvm_syscall *)listmv_at(&vm->syscalls, i);
+    if (strcmp(syscall->name, name) == 0) {
+      smvm_ip_inc(vm, len);
+      ((void (*)(smvm *))syscall->function)(vm);
+      return;
+    }
+  }
+
+  fprintf(stderr, "Error: Syscall '%s' not found\n", name);
+  smvm_set_flag(vm, flag_t);
+}
 void getu_fn(smvm *vm) {
   u64 input;
   scanf("%lu", &input);

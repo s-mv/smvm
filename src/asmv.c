@@ -1,5 +1,7 @@
 #include "asmv.h"
 
+#include "smvm.h"
+
 void asmv_init(asmv *as) {
   as->index = 0;
   as->panic_mode = false;
@@ -240,7 +242,9 @@ asmv_inst asmv_lex_inst(asmv *as) {
         op.width = reg >> 3;
         op.data.reg = reg & 0b111;
         op.offset = parse_offset(as);
-      } else if (current == '"' && inst.code == op_puts) {
+      } else if (current == '"' &&
+                 (inst.code == op_puts || inst.code == op_extern ||
+                  inst.code == op_scall)) {
         asmv_skip(as);
         listmv_init(&op.data.str, sizeof(char));
 
@@ -285,6 +289,7 @@ asmv_inst asmv_lex_inst(asmv *as) {
     }
     break;
   }
+
   return inst;
 }
 

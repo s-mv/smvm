@@ -1,5 +1,7 @@
 #include "smvm.h"
 
+#include <string.h>
+
 #include "asmv.h"
 #include "dsmv.h"
 
@@ -42,7 +44,7 @@ instruction_info instruction_table[instruction_table_len] = {
     [op_ret] = {"ret", 3, 0, ret_fn},
     [op_push] = {"push", 4, 1, push_fn},
     [op_pop] = {"pop", 3, 1, pop_fn},
-    [op_import] = {"extern", 4, 1, extern_fn},
+    [op_extern] = {"extern", 6, 1, extern_fn},
     [op_scall] = {"scall", 5, 1, scall_fn},
     [op_getu] = {"getu", 4, 1, getu_fn},
     [op_puti] = {"puti", 4, 1, puti_fn},
@@ -59,10 +61,16 @@ void smvm_init(smvm *vm) {
   vm->little_endian = is_little_endian();
 }
 
-void smvm_register_syscall(smvm *vm, void *fn, char *fn_name) {
-  int id = vm->syscalls.len;
-  smvm_syscall call = {.id = id, .function = fn, .name = fn_name};
-  listmv_push(&vm->syscalls, &call);
+void smvm_link_call(smvm *vm, void (*fn)(smvm *), const char *name) {
+  smvm_syscall syscall = {
+      .id = vm->syscalls.len,
+      .function = fn,
+      .name = malloc((strlen(name) + 1) * sizeof(char)),
+  };
+
+  strncpy(syscall.name, name, strlen(name) + 1);
+
+  listmv_push(&vm->syscalls, &syscall);
 }
 
 void smvm_assemble(smvm *vm, char *code) {
@@ -195,14 +203,14 @@ void smvm_reset_flag(smvm *vm, smvm_flag flag) { vm->flags &= ~flag; }
 
 /* vm - helpers - implementation */
 
-void stack_push(smvm *vm, u8 *value, u64 width) {
+void smvm_push(smvm *vm, u8 *value, u64 width) {
   listmv_grow(&vm->stack, vm->stack.len + width);
   mov_mem((u8 *)vm->stack.data, value, width);
   vm->stack.len += width;
   update_stack_pointer(vm);
 }
 
-u8 *stack_pop(smvm *vm, u64 width) {
+u8 *smvm_pop(smvm *vm, u64 width) {
   u8 *bytes = listmv_pop_array(&vm->stack, width);
   update_stack_pointer(vm);
   return bytes;

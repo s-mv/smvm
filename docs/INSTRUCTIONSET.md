@@ -1,12 +1,20 @@
 # smvm - instructions
 Instruction in smvm can be divided into many types:
-1. [Memory management instructions](#memory-management-instructions)
-    1. [mov](#1-mov-x-y)
-    2. swap
-2. [Arithmetic instructions](#arithmetic-instructions)
-3. [Bitwise operation instructions](#bitwise-operation-instructions)
-4. [Branching instructions](#branching-instructions)
-5. [Misc. instructions](#misc-instructions)
+- [smvm - instructions](#smvm---instructions)
+  - [Memory management instructions](#memory-management-instructions)
+    - [1. `mov x y`](#1-mov-x-y)
+  - [Arithmetic instructions](#arithmetic-instructions)
+    - [1. Addition instructions](#1-addition-instructions)
+    - [2. Subtraction instructions](#2-subtraction-instructions)
+    - [3. Multiplication instructions](#3-multiplication-instructions)
+    - [4. Division instructions](#4-division-instructions)
+    - [5. Increment/decrement operations](#5-incrementdecrement-operations)
+  - [Bitwise operation instructions](#bitwise-operation-instructions)
+    - [1. AND](#1-and)
+    - [2. OR](#2-or)
+    - [3. XOR](#3-xor)
+  - [Branching instructions](#branching-instructions)
+  - [Misc. instructions](#misc-instructions)
 
 ## Memory management instructions
 ### 1. `mov x y`
