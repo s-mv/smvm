@@ -15,10 +15,12 @@ larger systems.
 ---
 
 ## Contents:
-1. [Usage](#usage)
-    1. [Basic Usage](#basic-usage)
-    2. [C interoperability](#c-interoperability)
-2. [Build and Install](#build-and-install)
+- [smvm - the smv virtual machine](#smvm---the-smv-virtual-machine)
+  - [Contents:](#contents)
+  - [Usage](#usage)
+    - [Basic Usage](#basic-usage)
+    - [C Interoperability](#c-interoperability)
+  - [Build and Install](#build-and-install)
 
 ---
 
@@ -30,7 +32,7 @@ Know more:
 ---
 
 ## Usage
-The VM is meant to be embedded into 
+The VM is meant to be embedded into C.
 
 ### Basic Usage
 ### C Interoperability

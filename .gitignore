@@ -1,6 +1,11 @@
 .vscode
 
+examples/test.asmv
+
 out/*
-!out/.gitkeep
+!out/
 build/*
 !build
+.cache
+
+compile_commands.json

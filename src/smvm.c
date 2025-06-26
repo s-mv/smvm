@@ -4,28 +4,51 @@
 #include "dsmv.h"
 
 instruction_info instruction_table[instruction_table_len] = {
-    [op_halt] = {"halt", 4, 0, trap_fn}, [op_mov] = {"mov", 3, 2, mov_fn},
-    [op_movu] = {"movu", 4, 2, movu_fn}, [op_movf] = {"movf", 4, 2, movf_fn},
-    [op_swap] = {"swap", 4, 2, swap_fn}, [op_lea] = {"lea", 3, 2, lea_fn},
-    [op_addu] = {"addu", 4, 3, addu_fn}, [op_addf] = {"addf", 4, 3, addf_fn},
-    [op_add] = {"add", 3, 3, add_fn},    [op_subu] = {"subu", 4, 3, subu_fn},
-    [op_subf] = {"subf", 4, 3, subf_fn}, [op_sub] = {"sub", 3, 3, sub_fn},
-    [op_mulu] = {"mulu", 4, 3, mulu_fn}, [op_mulf] = {"mulf", 4, 3, mulf_fn},
-    [op_mul] = {"mul", 3, 3, mul_fn},    [op_divu] = {"divu", 4, 3, divu_fn},
-    [op_divf] = {"divf", 4, 3, divf_fn}, [op_div] = {"div", 3, 3, div_fn},
-    [op_inc] = {"inc", 3, 1, inc_fn},    [op_dec] = {"dec", 3, 1, dec_fn},
-    [op_and] = {"and", 3, 3, and_fn},    [op_or] = {"or", 2, 3, or_fn},
-    [op_xor] = {"xor", 3, 3, xor_fn},    [op_shli] = {"shli", 4, 3, shli_fn},
-    [op_shl] = {"shl", 3, 3, shl_fn},    [op_shri] = {"shri", 4, 3, shri_fn},
-    [op_shr] = {"shr", 3, 3, shr_fn},    [op_slc] = {"slc", 3, 3, slc_fn},
-    [op_src] = {"src", 3, 3, src_fn},    [op_jmp] = {"jmp", 3, 1, jmp_fn},
-    [op_je] = {"je", 2, 3, je_fn},       [op_jne] = {"jne", 3, 3, jne_fn},
-    [op_jl] = {"jl", 2, 3, jl_fn},       [op_loop] = {"loop", 4, 2, loop_fn},
-    [op_call] = {"call", 4, 1, call_fn}, [op_ret] = {"ret", 3, 0, ret_fn},
-    [op_push] = {"push", 4, 1, push_fn}, [op_pop] = {"pop", 3, 1, pop_fn},
-    [op_scall] = {"scall", 5, 1, scall}, [op_getu] = {"getu", 4, 1, getu_fn},
-    [op_puti] = {"puti", 4, 1, puti_fn}, [op_putu] = {"putu", 4, 1, putu_fn},
-    [op_putf] = {"putf", 4, 1, putf_fn}, [op_puts] = {"puts", 4, 1, puts_fn}};
+    [op_halt] = {"halt", 4, 0, trap_fn},
+    [op_mov] = {"mov", 3, 2, mov_fn},
+    [op_movu] = {"movu", 4, 2, movu_fn},
+    [op_movf] = {"movf", 4, 2, movf_fn},
+    [op_swap] = {"swap", 4, 2, swap_fn},
+    [op_lea] = {"lea", 3, 2, lea_fn},
+    [op_addu] = {"addu", 4, 3, addu_fn},
+    [op_addf] = {"addf", 4, 3, addf_fn},
+    [op_add] = {"add", 3, 3, add_fn},
+    [op_subu] = {"subu", 4, 3, subu_fn},
+    [op_subf] = {"subf", 4, 3, subf_fn},
+    [op_sub] = {"sub", 3, 3, sub_fn},
+    [op_mulu] = {"mulu", 4, 3, mulu_fn},
+    [op_mulf] = {"mulf", 4, 3, mulf_fn},
+    [op_mul] = {"mul", 3, 3, mul_fn},
+    [op_divu] = {"divu", 4, 3, divu_fn},
+    [op_divf] = {"divf", 4, 3, divf_fn},
+    [op_div] = {"div", 3, 3, div_fn},
+    [op_inc] = {"inc", 3, 1, inc_fn},
+    [op_dec] = {"dec", 3, 1, dec_fn},
+    [op_and] = {"and", 3, 3, and_fn},
+    [op_or] = {"or", 2, 3, or_fn},
+    [op_xor] = {"xor", 3, 3, xor_fn},
+    [op_shli] = {"shli", 4, 3, shli_fn},
+    [op_shl] = {"shl", 3, 3, shl_fn},
+    [op_shri] = {"shri", 4, 3, shri_fn},
+    [op_shr] = {"shr", 3, 3, shr_fn},
+    [op_slc] = {"slc", 3, 3, slc_fn},
+    [op_src] = {"src", 3, 3, src_fn},
+    [op_jmp] = {"jmp", 3, 1, jmp_fn},
+    [op_je] = {"je", 2, 3, je_fn},
+    [op_jne] = {"jne", 3, 3, jne_fn},
+    [op_jl] = {"jl", 2, 3, jl_fn},
+    [op_loop] = {"loop", 4, 2, loop_fn},
+    [op_call] = {"call", 4, 1, call_fn},
+    [op_ret] = {"ret", 3, 0, ret_fn},
+    [op_push] = {"push", 4, 1, push_fn},
+    [op_pop] = {"pop", 3, 1, pop_fn},
+    [op_import] = {"extern", 4, 1, extern_fn},
+    [op_scall] = {"scall", 5, 1, scall_fn},
+    [op_getu] = {"getu", 4, 1, getu_fn},
+    [op_puti] = {"puti", 4, 1, puti_fn},
+    [op_putu] = {"putu", 4, 1, putu_fn},
+    [op_putf] = {"putf", 4, 1, putf_fn},
+    [op_puts] = {"puts", 4, 1, puts_fn}};
 
 void smvm_init(smvm *vm) {
   *vm = (smvm){0};
@@ -101,7 +124,7 @@ void smvm_execute(smvm *vm) {
             vm->cache.pointers[i] = listmv_at(&vm->memory, address);
             break;
           }
-          case mode_immediate:
+          case mode_immediate: {
             u8 size = 1 << (reg[i] & 3);
             vm->cache.data[i] = 0;
             if (vm->little_endian)
@@ -112,6 +135,7 @@ void smvm_execute(smvm *vm) {
             code_width += size;
             vm->cache.pointers[i] = &vm->cache.data[i];
             break;
+          }
           default:  // idk what this is for
             break;
         }
@@ -136,7 +160,7 @@ void smvm_disassemble(smvm *vm, char *code) {
   dsmv_init(&ds);
   ds.bytecode = vm->bytecode;
   dsmv_disassemble(&ds);
-  // code = malloc(ds.code.len);
+  code = malloc(ds.code.len);
   strncpy(code, (char *)ds.code.data, ds.code.len);
   dsmv_free(&ds);
 }
@@ -168,217 +192,6 @@ u16 smvm_get_flag(smvm *vm, smvm_flag flag) { return vm->flags & flag; }
 void smvm_set_flag(smvm *vm, smvm_flag flag) { vm->flags |= flag; }
 
 void smvm_reset_flag(smvm *vm, smvm_flag flag) { vm->flags &= ~flag; }
-
-/* vm - opcode functions - implementation */
-
-void trap_fn(smvm *vm) { smvm_set_flag(vm, flag_t); }
-void mov_fn(smvm *vm) {
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)vm->cache.pointers[1],
-          vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void movu_fn(smvm *vm) {
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)vm->cache.pointers[1],
-          vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void movf_fn(smvm *vm) {
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)vm->cache.pointers[1],
-          vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void swap_fn(smvm *vm) {
-  u64 temp;
-  u8 width = vm->cache.widths[0] > vm->cache.widths[1] ? vm->cache.widths[0]
-                                                       : vm->cache.widths[1];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)temp, width);
-  mov_mem((u8 *)temp, (u8 *)vm->cache.pointers[1], width);
-}
-void lea_fn(smvm *vm) {}
-void add_fn(smvm *vm) {
-  i64 result = *vm->cache.pointers[1] + *vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void addu_fn(smvm *vm) {
-  u64 result = *(u64 *)vm->cache.pointers[1] + *(u64 *)vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void addf_fn(smvm *vm) {
-  f64 result = *(f64 *)vm->cache.pointers[1] + *(f64 *)vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void sub_fn(smvm *vm) {
-  i64 result = *vm->cache.pointers[1] - *vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void subu_fn(smvm *vm) {
-  u64 result = *(u64 *)vm->cache.pointers[1] - *(u64 *)vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void subf_fn(smvm *vm) {
-  f64 result = *(f64 *)vm->cache.pointers[1] - *(f64 *)vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void mul_fn(smvm *vm) {
-  i64 result = *vm->cache.pointers[1] * *vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void mulu_fn(smvm *vm) {
-  u64 result = *(u64 *)vm->cache.pointers[1] * *(u64 *)vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void mulf_fn(smvm *vm) {
-  f64 result = *(f64 *)vm->cache.pointers[1] * *(f64 *)vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void div_fn(smvm *vm) {
-  i64 result = *vm->cache.pointers[1] / *vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void divu_fn(smvm *vm) {
-  u64 result = *(u64 *)vm->cache.pointers[1] / *(u64 *)vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void divf_fn(smvm *vm) {
-  f64 result = *(f64 *)vm->cache.pointers[1] + *(f64 *)vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void inc_fn(smvm *vm) {
-  u64 op = *vm->cache.pointers[0] + 1;
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&op, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void dec_fn(smvm *vm) {
-  u64 op = *vm->cache.pointers[0] - 1;
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&op, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void and_fn(smvm *vm) {
-  u64 result = *vm->cache.pointers[1] & *vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void or_fn(smvm *vm) {
-  u64 result = *vm->cache.pointers[1] | *vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void xor_fn(smvm *vm) {
-  u64 result = *vm->cache.pointers[1] ^ *vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void shl_fn(smvm *vm) {
-  u64 result = *vm->cache.pointers[1] << *vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void shr_fn(smvm *vm) {
-  u64 result = *vm->cache.pointers[1] >> *vm->cache.pointers[2];
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void shli_fn(smvm *vm) {}
-void shri_fn(smvm *vm) {}
-void slc_fn(smvm *vm) {}
-void src_fn(smvm *vm) {}
-void jmp_fn(smvm *vm) {
-  vm->registers[reg_ip] = 0;
-  mov_mem((u8 *)&vm->registers[reg_ip], (u8 *)vm->cache.pointers[0],
-          vm->cache.widths[0]);
-}
-void je_fn(smvm *vm) {
-  if (*vm->cache.pointers[0] != *vm->cache.pointers[1]) {
-    smvm_ip_inc(vm, 1);
-    return;
-  }  // else
-  vm->registers[reg_ip] = 0;
-  mov_mem((u8 *)&vm->registers[reg_ip], (u8 *)vm->cache.pointers[2],
-          vm->cache.widths[2]);
-}
-void jne_fn(smvm *vm) {
-  i64 left = 0, right = 0;
-  mov_mem((u8 *)&left, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
-  mov_mem((u8 *)&right, (u8 *)vm->cache.pointers[1], vm->cache.widths[1]);
-  if (left == right) {
-    smvm_ip_inc(vm, vm->cache.offset);
-    return;
-  }  // else
-  vm->registers[reg_ip] = 0;
-  mov_mem((u8 *)&vm->registers[reg_ip], (u8 *)vm->cache.pointers[2],
-          vm->cache.widths[2]);
-}
-void jl_fn(smvm *vm) {}
-void loop_fn(smvm *vm) {
-  stack_push(vm, (u8 *)&vm->registers[reg_ip], 8);
-  vm->registers[reg_ip] = 0;
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void call_fn(smvm *vm) {
-  u64 addr = vm->registers[reg_ip] + vm->cache.offset;
-  stack_push(vm, (u8 *)&addr, 8);
-  vm->registers[reg_ip] = 0;
-  mov_mem((u8 *)&vm->registers[reg_ip], (u8 *)vm->cache.pointers[0],
-          vm->cache.widths[0]);
-}
-void ret_fn(smvm *vm) { vm->registers[reg_ip] = *(i64 *)stack_pop(vm, 8); }
-void push_fn(smvm *vm) {
-  stack_push(vm, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void pop_fn(smvm *vm) {
-  u8 *data = stack_pop(vm, vm->cache.widths[0]);
-  mov_mem((u8 *)vm->cache.pointers[0], data, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-
-void scall(smvm *vm) {}
-
-void getu_fn(smvm *vm) {
-  u64 input;
-  scanf("%lu", &input);
-  mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&input, vm->cache.widths[0]);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void puti_fn(smvm *vm) {
-  i64 data = parse_signed(*vm->cache.pointers[0], vm->cache.widths[0]);
-  printf("%li\n", data);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void putu_fn(smvm *vm) {
-  u64 data = 0;
-  mov_mem((u8 *)&data, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
-  printf("%lu\n", data);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void putf_fn(smvm *vm) {
-  f64 data = 0;
-  mov_mem((u8 *)&data, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
-  printf("%lf\n", data);
-  smvm_ip_inc(vm, vm->cache.offset);
-}
-void puts_fn(smvm *vm) {
-  smvm_ip_inc(vm, vm->cache.offset);
-  char *str = (char *)listmv_at(&vm->bytecode, vm->registers[reg_ip]);
-  u64 len = 0;
-  while (str[len] != '\0') len++;
-  len++;
-  printf("%s", str);
-  fflush(stdout);
-  smvm_ip_inc(vm, len);
-}
 
 /* vm - helpers - implementation */
 

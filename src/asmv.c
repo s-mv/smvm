@@ -1,7 +1,5 @@
 #include "asmv.h"
 
-#include "smvm.h"
-
 void asmv_init(asmv *as) {
   as->index = 0;
   as->panic_mode = false;

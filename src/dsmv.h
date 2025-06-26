@@ -1,7 +1,7 @@
 #ifndef smv_smvm_dsmv_h
 #define smv_smvm_dsmv_h
 
-#include "smvm.h"
+#include "util.h"
 
 typedef struct dsmv {
   listmv(u8) bytecode;  // input

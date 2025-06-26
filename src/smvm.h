@@ -40,7 +40,7 @@ typedef struct smvm_syscall {
   void *function;
 } smvm_syscall;
 
-typedef enum smvm_opcode {
+typedef enum smvm_opcode : u8 {
   op_halt = 0b000000,
   op_mov = 0b000001,
   op_movu = 0b000010,
@@ -79,15 +79,16 @@ typedef enum smvm_opcode {
   op_ret = 0b100011,
   op_push = 0b100100,
   op_pop = 0b100101,
-  op_scall = 0b100110,
-  op_getu = 0b100111,
-  op_puti = 0b101000,
-  op_putu = 0b101001,
-  op_putf = 0b101010,
-  op_puts = 0b101011,
+  op_import = 0b100110,
+  op_scall = 0b100111,
+  op_getu = 0b101000,
+  op_puti = 0b101001,
+  op_putu = 0b101010,
+  op_putf = 0b101011,
+  op_puts = 0b101100,
 } smvm_opcode;
 
-typedef enum smvm_register {
+typedef enum smvm_register : u8 {
   reg_a = 0b000,
   reg_b = 0b001,
   reg_c = 0b010,
@@ -99,14 +100,14 @@ typedef enum smvm_register {
   reg_none = 0b1000,
 } smvm_register;
 
-typedef enum smvm_data_width {
+typedef enum smvm_data_width : u8 {
   smvm_reg8 = 0b00,
   smvm_reg16 = 0b01,
   smvm_reg32 = 0b10,
   smvm_reg64 = 0b11,
 } smvm_data_width;
 
-typedef enum smvm_flag {
+typedef enum smvm_flag : u8 {
   flag_o = 1,       // overflow
   flag_d = 1 << 1,  // direction
   flag_t = 1 << 2,  // trap ~TODO add errors~
@@ -197,7 +198,8 @@ void call_fn(smvm *vm);
 void ret_fn(smvm *vm);
 void push_fn(smvm *vm);
 void pop_fn(smvm *vm);
-void scall(smvm *vm);
+void extern_fn(smvm *vm);
+void scall_fn(smvm *vm);
 void getu_fn(smvm *vm);
 void puti_fn(smvm *vm);
 void putu_fn(smvm *vm);
@@ -212,7 +214,7 @@ typedef struct instruction_info {
   void (*fn)(smvm *);
 } instruction_info;
 
-#define instruction_table_len (44)
+#define instruction_table_len (45)
 extern instruction_info instruction_table[instruction_table_len];
 
 #endif

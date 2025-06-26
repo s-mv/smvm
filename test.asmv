@@ -1,4 +1,0 @@
-mov ra 69
-mov @ra 420
-puti @ra
-halt
