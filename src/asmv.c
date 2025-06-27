@@ -26,10 +26,10 @@ u8 asmv_parse_register(asmv *as) {
     return (smvm_reg64 << 3) | reg_sp;
   }
 
-  if (asmv_current(as) == 's' && asmv_peek(as) == 'o' &&
+  if (asmv_current(as) == 'b' && asmv_peek(as) == 'p' &&
       !isalnum(asmv_peek2(as))) {
     as->index += 2;
-    return (smvm_reg64 << 3) | reg_so;
+    return (smvm_reg64 << 3) | reg_bp;
   }
 
   if (asmv_current(as) == 'a' || asmv_current(as) == 'b' ||
@@ -60,7 +60,6 @@ u8 asmv_parse_register(asmv *as) {
   return reg_none;
 }
 
-// TODO, floating point numbers
 asmv_op_data parse_number(asmv *as) {
   double num = 0.0;
   bool neg = false;
@@ -299,14 +298,19 @@ void asmv_assemble(asmv *as) {
   // first pass
   while (as->code[as->index] != '\0') {
     // TODO also lex "let"?
-    if (asmv_current(as) == 'l' && asmv_peek(as) == 'e' &&
-        asmv_peek2(as) == 't' && !isalnum(as->code[as->index])) {}
+    // if (asmv_current(as) == 'l' && asmv_peek(as) == 'e' &&
+    //     asmv_peek2(as) == 't' && !isalnum(as->code[as->index])) {}
 
     asmv_inst inst = asmv_lex_inst(as);
     if (inst.eof) break;
-    if (!inst.label) {
+    if (inst.label) {
+      asmv_label label = {
+          .address = offset, .str = inst.str, .index = as->instructions.len};
+      listmv_push(&as->label_addrs, &label);
+    } else {
       if (instruction_table[inst.code].num_ops == 0) offset++;
       else {
+        inst.index = offset;
         offset += instruction_table[inst.code].num_ops == 3 ? 4 : 3;
         for (int i = 0; i < instruction_table[inst.code].num_ops; i++) {
           // TODO efficiency for storing labels
@@ -317,12 +321,10 @@ void asmv_assemble(asmv *as) {
             offset += 1 << inst.operands[i].size;
         }
       }
-    } else {
-      asmv_label label = {.address = offset, .str = inst.str};
-      listmv_push(&as->label_addrs, &label);
+
+      listmv_push(&as->instructions, &inst);
     }
 
-    listmv_push(&as->instructions, &inst);
     asmv_inst *inst_ref =
         listmv_at(&as->instructions, as->instructions.len - 1);
 
@@ -343,6 +345,7 @@ void asmv_assemble(asmv *as) {
       asmv_inst *inst = listmv_at(&as->instructions, ref->inst_index);
       asmv_operand *op = &inst->operands[ref->op_index];
       if (op->data.str.cap && !strcmp(label.str.data, op->data.str.data)) {
+        inst->label_index = label.index;
         listmv_free(&op->data.str);
         op->mode = mode_immediate;
         op->data.unum = label.address;
@@ -423,8 +426,27 @@ void asmv_assemble(asmv *as) {
       if (op.data.type != asmv_str_type) continue;
       listmv_push_array(&as->output.bytecode, op.data.str.data,
                         op.data.str.len);
-      listmv_free(&op.data.str);
     }
+  }
+
+  for (int i = 0; i < as->label_addrs.len; i++) {
+    asmv_label label = *(asmv_label *)listmv_at(&as->label_addrs, i);
+    bool matched = false;
+    for (int j = 0; j < as->label_refs.len; j++) {
+      label_reference *ref = listmv_at(&as->label_refs, j);
+      asmv_inst *inst = listmv_at(&as->instructions, ref->inst_index);
+      asmv_operand *op = &inst->operands[ref->op_index];
+      if (op->data.str.cap && !strcmp(label.str.data, op->data.str.data)) {
+        listmv_free(&op->data.str);
+        op->mode = mode_immediate;
+        op->data.unum = label.address;
+        op->width = smvm_reg64;
+        op->size = smvm_reg64;
+        matched = true;
+        break;
+      }
+    }
+    if (matched) continue;
   }
 
   // append the header now
@@ -438,10 +460,9 @@ void asmv_assemble(asmv *as) {
 }
 
 void asmv_free(asmv *as) {
-  listmv_free(&as->instructions);
   listmv_free(&as->label_refs);
   listmv_free(&as->label_addrs);
-  // bytecode is now owned by a vm
+  // bytecode, instruction is now owned by a vm
   // so no need to free it
 }
 

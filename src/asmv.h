@@ -2,6 +2,7 @@
 #define smv_smvm_asmv_h
 
 #include "smvm.h"
+#include "util.h"
 
 typedef struct asmv {
   char *code;  // input
@@ -61,13 +62,15 @@ typedef struct asmv_inst {
   };
   bool eof : 1;
   bool label : 1;
-  asmv_error error;
+  u64 label_index;
   u64 index;
+  asmv_error error;
 } asmv_inst;
 
 typedef struct asmv_label {
   listmv str;
   u64 address;
+  u64 index;  // index in instruction array
 } asmv_label;
 
 typedef struct label_reference {

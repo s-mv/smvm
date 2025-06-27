@@ -1,5 +1,6 @@
 #include "smvm.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "asmv.h"
@@ -79,6 +80,7 @@ void smvm_assemble(smvm *vm, char *code) {
   assembler.code = code;
   asmv_assemble(&assembler);
   if (vm->bytecode.data != NULL) listmv_free(&vm->bytecode);
+  vm->instructions = assembler.instructions;
   vm->bytecode = assembler.output.bytecode;  // ownership to vm
   vm->header = assembler.output.header;
   asmv_free(&assembler);
@@ -86,71 +88,49 @@ void smvm_assemble(smvm *vm, char *code) {
 
 // TODO error return type
 void smvm_execute(smvm *vm) {
-  while (true) {
-    u8 *inst = smvm_fetch_inst_addr(vm);
-    u8 code = inst[0] & 0x3f;
+  for (vm->registers[reg_ip] = 0; vm->registers[reg_ip] < vm->instructions.len;
+       vm->registers[reg_ip]++) {
+    asmv_inst *instruction =
+        (asmv_inst *)listmv_at(&vm->instructions, vm->registers[reg_ip]);
+    vm->cache.instruction = instruction;
+
+    u8 code = instruction->code;
     u8 num_ops = instruction_table[code].num_ops;
+    u8 code_width = num_ops != 3 ? 3 : 4;
 
-    if (instruction_table[code].num_ops == 0) {
-      instruction_table[code].fn(vm);
-    } else {
-      u8 reg[3] = {inst[2] & 7, (inst[2] >> 3) & 7, inst[3] & 7};
-      u8 code_width = num_ops != 3 ? 3 : 4;
-      i8 offsets[3] = {0, 0, 0};
-
-      vm->cache.widths[0] = (inst[1] >> 2) & 3;
-      vm->cache.widths[1] = inst[1] & 3;
-      vm->cache.widths[2] = (inst[3] >> 3) & 3;
-
-      for (int i = 0; i < num_ops; i++) {
-        u8 byte = (i == 2) ? 3 : 1;
-        u8 bit_shift = (i == 2) ? 5 : (5 - i);
-        vm->cache.widths[i] = 1 << vm->cache.widths[i];
-        if ((inst[byte] >> bit_shift) & 1) offsets[i] = inst[code_width++];
-
-        switch (inst[i] >> 6) {
-          case mode_register:
-            vm->cache.pointers[i] = &vm->registers[reg[i]];
-            break;
-          case mode_indirect:
-            listmv_grow(&vm->memory, vm->registers[reg[i]] +
-                                         vm->cache.widths[i] + offsets[i] + 1);
-            vm->cache.pointers[i] =
-                listmv_at(&vm->memory, vm->registers[reg[i]]);
-            if (offsets[i] != 0) {
-              u8 *ptr = (u8 *)vm->cache.pointers[i];
-              ptr -= offsets[i];
-            }
-            break;
-          case mode_direct: {
-            u8 size = 1 << (reg[i] & 3);
-            u64 address = 0;
-            // reg also holds size
-            mov_mem((u8 *)&address, inst + code_width, size);
-            listmv_grow(&vm->memory, address + vm->cache.widths[i] + 1);
-            code_width += size;
-            vm->cache.pointers[i] = listmv_at(&vm->memory, address);
-            break;
-          }
-          case mode_immediate: {
-            u8 size = 1 << (reg[i] & 3);
-            vm->cache.data[i] = 0;
-            if (vm->little_endian)
-              mov_mem_reverse((u8 *)(&vm->cache.data[i]), inst + code_width,
-                              size);
-            else mov_mem((u8 *)(&vm->cache.data[i]), inst + code_width, size);
-            vm->cache.data[i] += offsets[i];
-            code_width += size;
-            vm->cache.pointers[i] = &vm->cache.data[i];
-            break;
-          }
-          default:  // idk what this is for
-            break;
-        }
+    for (int j = 0; j < num_ops; j++) {
+      asmv_operand *op = &instruction->operands[j];
+      switch (op->mode) {
+        case mode_register:
+          vm->cache.pointers[j] = &vm->registers[op->data.reg];
+          break;
+        case mode_indirect:
+          listmv_grow(&vm->memory, vm->registers[op->data.reg] + op->width);
+          vm->cache.pointers[j] =
+              listmv_at(&vm->memory, vm->registers[op->data.reg]);
+          break;
+        case mode_direct:
+          listmv_grow(&vm->memory, op->data.unum + op->width);
+          vm->cache.pointers[j] = listmv_at(&vm->memory, op->data.unum);
+          break;
+        case mode_immediate:
+          vm->cache.data[j] = op->data.unum;
+          vm->cache.pointers[j] = &vm->cache.data[j];
+          break;
+        default:
+          fprintf(stderr, "Unknown operand mode\n");
+          smvm_set_flag(vm, flag_t);
+          return;
       }
-      vm->cache.offset = code_width;
-      instruction_table[code].fn(vm);
+      vm->cache.widths[j] = 1 << op->width;
+
+      if (op->data.type == asmv_str_type) {
+        vm->cache.pointers[j] = (i64 *)listmv_at(&op->data.str, 0);
+      }
     }
+
+    vm->cache.offset = code_width;
+    instruction_table[code].fn(vm);
 
     if (smvm_get_flag(vm, flag_t)) break;  // TODO, so much
   }
@@ -158,6 +138,14 @@ void smvm_execute(smvm *vm) {
 
 void smvm_free(smvm *vm) {
   listmv_free(&vm->memory);
+  for (int i = 0; i < vm->instructions.len; i++) {
+    asmv_inst instruction = *(asmv_inst *)listmv_at(&vm->instructions, i);
+    for (int j = 0; j < instruction_table[instruction.code].num_ops; j++) {
+      asmv_operand *op = &instruction.operands[j];
+      if (op->data.type == asmv_str_type) { listmv_free(&op->data.str); }
+    }
+  }
+  listmv_free(&vm->instructions);
   listmv_free(&vm->bytecode);
   listmv_free(&vm->stack);
   listmv_free(&vm->syscalls);
@@ -189,10 +177,10 @@ smvm_data_width min_space_needed(i64 data) {
   return smvm_reg64;
 }
 
-void smvm_ip_inc(smvm *vm, u64 inc) { vm->registers[reg_ip] += inc; }
+void smvm_bytecode_inc(smvm *vm, u64 inc) { vm->registers[reg_bp] += inc; }
 
-u8 *smvm_fetch_inst_addr(smvm *vm) {
-  return (u8 *)listmv_at(&vm->bytecode, vm->registers[reg_ip]);
+u8 *smvm_fetch_byte_addr(smvm *vm) {
+  return (u8 *)listmv_at(&vm->bytecode, vm->registers[reg_bp]);
 }
 
 u16 smvm_get_flag(smvm *vm, smvm_flag flag) { return vm->flags & flag; }

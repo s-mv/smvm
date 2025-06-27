@@ -1,0 +1,238 @@
+# Constants
+mov ra 800     # Screen width
+mov rb 600     # Screen height
+mov rc 20      # Paddle width
+mov rd 100     # Paddle height
+mov @100 10    # Ball size
+mov @104 50    # FPS sleep time (ms)
+
+# Initial positions
+mov @200 50              # Left paddle X
+mov @204 250             # Left paddle Y
+mov @208 ra              # Right paddle X
+sub @208 @208 rc
+sub @208 @208 10         # Right paddle X = screen width - paddle width - 10
+mov @212 250             # Right paddle Y
+mov @300 400             # Ball X
+mov @304 300             # Ball Y
+mov @308 5               # Ball X velocity
+mov @312 3               # Ball Y velocity
+mov @500 0               # Left player score
+mov @504 0               # Right player score
+
+# Game loop
+.game_loop
+    # Clear screen
+    scall "clear_screen"
+    
+    # Draw left paddle
+    mov ra @200          # X
+    mov rb @204          # Y
+    mov rc 20            # Width
+    mov rd 100           # Height
+    scall "draw_rect"
+    
+    # Draw right paddle
+    mov ra @208          # X
+    mov rb @212          # Y
+    mov rc 20            # Width
+    mov rd 100           # Height
+    scall "draw_rect"
+    
+    # Draw ball
+    mov ra @300          # X
+    mov rb @304          # Y
+    mov rc @100          # Size (width)
+    mov rd @100          # Size (height)
+    scall "draw_rect"
+    
+    # Update ball position
+    mov ra @300          # Ball X
+    add ra ra @308       # Ball X += X velocity
+    mov @300 ra          # Store updated X
+    
+    mov ra @304          # Ball Y
+    add ra ra @312       # Ball Y += Y velocity
+    mov @304 ra          # Store updated Y
+    
+    # Ball collision with top/bottom walls
+    mov ra @304          # Ball Y
+    mov rb 0             # Top edge
+    jl ra rb .bounce_top # If ball Y < 0, bounce
+    mov ra @304          # Ball Y
+    add rb @100 ra       # Ball bottom edge = Y + size
+    mov ra 600           # Screen height
+    jl ra rb .skip_bottom_bounce # If screen height < ball bottom, bounce
+    jmp .check_paddle_collision
+    
+    .bounce_top
+    mov @304 0           # Set Y to top edge
+    mov ra @312          # Y velocity
+    mul ra ra -1         # Reverse Y velocity
+    mov @312 ra          # Store new Y velocity
+    jmp .check_paddle_collision
+    
+    .skip_bottom_bounce
+    mov ra @304          # Ball Y
+    add ra ra @100       # Ball bottom
+    mov rb 600           # Screen height
+    jne ra rb .check_paddle_collision
+    sub ra ra @100       # Ball Y
+    mov @304 ra          # Reset Y position
+    mov ra @312          # Y velocity
+    mul ra ra -1         # Reverse Y velocity
+    mov @312 ra          # Store new Y velocity
+    
+    .check_paddle_collision
+    # Check left paddle collision
+    mov ra @300          # Ball X
+    mov rb @200          # Left paddle X
+    add rb rb rc         # Left paddle right edge = X + width
+    jl rb ra .check_right_paddle # If paddle right < ball X, no collision
+    
+    mov rb @200          # Left paddle X
+    jl ra rb .check_right_paddle # If ball X < paddle X, no collision
+    
+    mov ra @304          # Ball Y
+    mov rb @204          # Left paddle Y
+    add rc @100 ra       # Ball bottom edge = Y + size
+    jl rb rc .check_y_overlap # If paddle Y < ball bottom, possible collision
+    jmp .check_right_paddle
+    
+    .check_y_overlap
+    mov rc @204          # Left paddle Y
+    add rc rc rd         # Paddle bottom edge = Y + height
+    mov rb @304          # Ball Y
+    jl rb rc .left_bounce # If ball Y < paddle bottom, collision confirmed
+    
+    .left_bounce
+    mov ra @308          # X velocity
+    mul ra ra -1         # Reverse X velocity
+    mov @308 ra          # Store new X velocity
+    
+    .check_right_paddle
+    # Check right paddle collision
+    mov ra @300          # Ball X
+    add ra ra @100       # Ball right edge
+    mov rb @208          # Right paddle X
+    jl ra rb .check_scoring # If ball right < paddle X, no collision
+    
+    mov ra @304          # Ball Y
+    mov rb @212          # Right paddle Y
+    add rc @100 ra       # Ball bottom = Y + size
+    jl rb rc .check_right_y_overlap # If paddle Y < ball bottom, possible collision
+    jmp .check_scoring
+    
+    .check_right_y_overlap
+    mov rc @212          # Right paddle Y
+    add rc rc rd         # Paddle bottom = Y + height
+    mov rb @304          # Ball Y
+    jl rb rc .right_bounce # If ball Y < paddle bottom, collision confirmed
+    jmp .check_scoring
+    
+    .right_bounce
+    mov ra @308          # X velocity
+    mul ra ra -1         # Reverse X velocity
+    mov @308 ra          # Store new X velocity
+    
+    .check_scoring
+    # Check if ball is out of bounds (scoring)
+    mov ra @300          # Ball X
+    mov rb 0             # Left edge
+    jl rb ra .check_right_score # If left edge < ball X, no left score
+    
+    # Right player scores
+    mov ra @504          # Right player score
+    inc ra
+    mov @504 ra          # Update score
+    mov @300 400         # Reset ball X
+    mov @304 300         # Reset ball Y
+    mov ra @308          # X velocity
+    mul ra ra -1         # Ensure ball moves right
+    mov @308 ra
+    jmp .update_paddles
+    
+    .check_right_score
+    mov ra @300          # Ball X
+    mov rb 800           # Right edge
+    jl ra rb .update_paddles # If ball X < right edge, no right score
+    
+    # Left player scores
+    mov ra @500          # Left player score
+    inc ra
+    mov @500 ra          # Update score
+    mov @300 400         # Reset ball X
+    mov @304 300         # Reset ball Y
+    mov ra @308          # X velocity
+    jl ra 0 .update_paddles # If X velocity < 0, don't change
+    mul ra ra -1         # Ensure ball moves left
+    mov @308 ra
+    
+    .update_paddles
+    # Simple AI for right paddle
+    mov ra @304          # Ball Y
+    add ra ra @100       # Ball center Y (approx)
+    sub ra ra 50         # Adjust to center paddle on ball
+    mov rb @212          # Right paddle Y
+    jl ra rb .move_right_paddle_up
+    
+    # Move right paddle down
+    mov ra @212          # Right paddle Y
+    add ra ra 4          # Move down by 4 pixels
+    mov rb 600           # Screen height
+    sub rb rb rd         # Max Y = screen height - paddle height
+    jl ra rb .store_right_y
+    mov ra rb            # Clamp to max Y
+    
+    .store_right_y
+    mov @212 ra          # Update right paddle Y
+    jmp .player_input
+    
+    .move_right_paddle_up
+    mov ra @212          # Right paddle Y
+    sub ra ra 4          # Move up by 4 pixels
+    jl ra 0 .clamp_right_min_y
+    jmp .store_right_y
+    
+    .clamp_right_min_y
+    mov ra 0             # Clamp to min Y (0)
+    jmp .store_right_y
+    
+    .player_input
+    # Move left paddle (simple automatic movement for demo)
+    mov ra @304          # Ball Y
+    add ra ra @100       # Ball center Y (approx)
+    sub ra ra 50         # Adjust to center paddle on ball
+    mov rb @204          # Left paddle Y
+    jl ra rb .move_left_paddle_up
+    
+    # Move left paddle down
+    mov ra @204          # Left paddle Y
+    add ra ra 3          # Move down by 3 pixels (slower than AI)
+    mov rb 600           # Screen height
+    sub rb rb rd         # Max Y = screen height - paddle height
+    jl ra rb .store_left_y
+    mov ra rb            # Clamp to max Y
+    
+    .store_left_y
+    mov @204 ra          # Update left paddle Y
+    jmp .frame_end
+    
+    .move_left_paddle_up
+    mov ra @204          # Left paddle Y
+    sub ra ra 3          # Move up by 3 pixels
+    jl ra 0 .clamp_left_min_y
+    jmp .store_left_y
+    
+    .clamp_left_min_y
+    mov ra 0             # Clamp to min Y (0)
+    jmp .store_left_y
+    
+    .frame_end
+    # Sleep to maintain framerate
+    mov ra @104          # Sleep time in ms
+    scall "sleep"
+    
+    jmp .game_loop
+
+halt

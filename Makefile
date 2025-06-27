@@ -8,7 +8,7 @@ LIBDIR = $(PREFIX)/lib
 INCDIR = $(PREFIX)/include/$(TITLE)
 
 dev: $(OBJECTS)
-	$(CC) examples/api/pong.c $(OBJECTS) $(INCLUDE) -o out/$(TITLE) $(CFLAGS)
+	$(CC) main.c $(OBJECTS) $(INCLUDE) -o out/$(TITLE) $(CFLAGS)
 
 test: $(OBJECTS)
 	$(CC) tests/tests.c $(OBJECTS) $(INCLUDE) -o out/tests $(CFLAGS)
@@ -34,4 +34,4 @@ install: out/lib$(TITLE).a out/lib$(TITLE).so
 	sudo ldconfig
 
 clean:
-	rm -rf out/* out_shared/*
+	rm -rf out/*

@@ -5,8 +5,10 @@
 
 // version -> ff.fff.fff
 // current version -> 0.1.0
-#define smvm_version (0x00001000)
+#define smvm_version (0x00001001)
 #define smvm_register_num (8)
+
+typedef struct asmv_inst asmv_inst;
 
 typedef struct smvm_header {
   u16 version;
@@ -17,16 +19,20 @@ typedef struct smvm_header {
 } smvm_header;
 
 typedef struct smvm {
-  listmv(u8) memory;
   listmv(u8) bytecode;
+  listmv(u8) stringpool;
+  listmv(u8) memory;
   listmv(u8) stack;
+  listmv(asmv_inst) instructions;
   listmv(smvm_syscall) syscalls;  // natives
+
   smvm_header header;
   i64 registers[smvm_register_num];
   u8 flags;
   bool little_endian;
-  // this is all cache, maybe I should make another struct
+
   struct cache {
+    asmv_inst *instruction;
     i64 *pointers[3];
     i64 data[3];
     u8 widths[3];
@@ -96,7 +102,7 @@ typedef enum smvm_register : u8 {
   reg_fl = 0b100,  // flag register
   reg_sp = 0b101,  // stack pointer
   reg_ip = 0b110,  // instruction pointer
-  reg_so = 0b111,  // syscall offset register (a lifesaver)
+  reg_bp = 0b111,  // bytecode pointer
   reg_none = 0b1000,
 } smvm_register;
 
@@ -151,8 +157,8 @@ bool is_little_endian();
 void update_stack_pointer(smvm *vm);
 smvm_data_width min_space_neededu(u64 data);
 smvm_data_width min_space_needed(i64 data);
-void smvm_ip_inc(smvm *vm, u64 inc);
-u8 *smvm_fetch_inst_addr(smvm *vm);
+void smvm_bytecode_inc(smvm *vm, u64 inc);
+u8 *smvm_fetch_byte_addr(smvm *vm);
 u16 smvm_get_flag(smvm *vm, smvm_flag flag);
 void smvm_set_flag(smvm *vm, smvm_flag flag);
 void smvm_reset_flag(smvm *vm, smvm_flag flag);
