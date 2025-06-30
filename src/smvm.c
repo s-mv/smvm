@@ -5,6 +5,7 @@
 
 #include "asmv.h"
 #include "dsmv.h"
+#include "util.h"
 
 instruction_info instruction_table[instruction_table_len] = {
     [op_halt] = {"halt", 4, 0, trap_fn},
@@ -58,31 +59,28 @@ void smvm_init(smvm *vm) {
   listmv_init(&vm->bytecode, sizeof(u8));
   listmv_init(&vm->memory, sizeof(u8));
   listmv_init(&vm->stack, sizeof(u8));
-  listmv_init(&vm->syscalls, sizeof(smvm_syscall));
   vm->little_endian = is_little_endian();
 }
 
-void smvm_link_call(smvm *vm, void (*fn)(smvm *), const char *name) {
-  smvm_syscall syscall = {
-      .id = vm->syscalls.len,
-      .function = fn,
-      .name = malloc((strlen(name) + 1) * sizeof(char)),
-  };
-
-  strncpy(syscall.name, name, strlen(name) + 1);
-
-  listmv_push(&vm->syscalls, &syscall);
+u64 smvm_find_syscall_index(smvm *vm, const char *name) {
+  for (u64 i = 0; i < vm->syscalls.len; i++) {
+    smvm_syscall *syscall = (smvm_syscall *)listmv_at(&vm->syscalls, i);
+    if (strcmp(syscall->name, name) == 0) { return i; }
+  }
+  return (u64)-1;
 }
 
 void smvm_assemble(smvm *vm, char *code) {
   asmv assembler;
-  asmv_init(&assembler);
+  asmv_init(&assembler, vm);
   assembler.code = code;
   asmv_assemble(&assembler);
   if (vm->bytecode.data != NULL) listmv_free(&vm->bytecode);
   vm->instructions = assembler.instructions;
-  vm->bytecode = assembler.output.bytecode;  // ownership to vm
-  vm->header = assembler.output.header;
+  vm->bytecode = assembler.bytecode;  // ownership to vm
+  vm->header = assembler.header;
+  listmv_free(&vm->syscalls);
+  vm->syscalls = assembler.syscalls;
   asmv_free(&assembler);
 }
 
@@ -101,26 +99,32 @@ void smvm_execute(smvm *vm) {
     for (int j = 0; j < num_ops; j++) {
       asmv_operand *op = &instruction->operands[j];
       switch (op->mode) {
-        case mode_register:
+        case mode_register: {
           vm->cache.pointers[j] = &vm->registers[op->data.reg];
           break;
-        case mode_indirect:
-          listmv_grow(&vm->memory, vm->registers[op->data.reg] + op->width);
+        }
+        case mode_indirect: {
+          listmv_grow(&vm->memory,
+                      vm->registers[op->data.reg] + (1 << op->width));
           vm->cache.pointers[j] =
               listmv_at(&vm->memory, vm->registers[op->data.reg]);
           break;
-        case mode_direct:
-          listmv_grow(&vm->memory, op->data.unum + op->width);
+        }
+        case mode_direct: {
+          listmv_grow(&vm->memory, op->data.unum + (1 << op->width));
           vm->cache.pointers[j] = listmv_at(&vm->memory, op->data.unum);
           break;
-        case mode_immediate:
+        }
+        case mode_immediate: {
           vm->cache.data[j] = op->data.unum;
           vm->cache.pointers[j] = &vm->cache.data[j];
           break;
-        default:
+        }
+        default: {
           fprintf(stderr, "Unknown operand mode\n");
           smvm_set_flag(vm, flag_t);
           return;
+        }
       }
       vm->cache.widths[j] = 1 << op->width;
 

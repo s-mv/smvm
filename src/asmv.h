@@ -9,11 +9,10 @@ typedef struct asmv {
   listmv(asmv_inst) instructions;
   listmv(asmv_label) label_refs;
   listmv(label_reference) label_addrs;
-  struct {
-    smvm_header header;
-    listmv(u8) memory;
-    listmv(u8) bytecode;
-  } output;
+  listmv(smvm_syscall) syscalls;
+  smvm_header header;
+  listmv(u8) memory;
+  listmv(u8) bytecode;
   u64 index;
   bool panic_mode;
 } asmv;
@@ -78,7 +77,7 @@ typedef struct label_reference {
   u8 op_index;
 } label_reference;
 
-void asmv_init(asmv *as);
+void asmv_init(asmv *as, smvm *vm);
 void asmv_assemble(asmv *as);
 asmv_inst asmv_lex_inst(asmv *as);
 void asmv_free(asmv *as);

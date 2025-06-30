@@ -2,13 +2,24 @@
 
 #include "smvm.h"
 
-void asmv_init(asmv *as) {
+void asmv_init(asmv *as, struct smvm *vm) {
   as->index = 0;
   as->panic_mode = false;
-  listmv_init(&as->output.bytecode, sizeof(u8));
+  listmv_init(&as->bytecode, sizeof(u8));
   listmv_init(&as->instructions, sizeof(asmv_inst));
   listmv_init(&as->label_addrs, sizeof(asmv_label));
   listmv_init(&as->label_refs, sizeof(label_reference));
+  listmv_init(&as->syscalls, sizeof(smvm_syscall));
+
+  for (int i = 0; i < vm->syscalls.len; i++) {
+    smvm_syscall *syscall = listmv_at(&vm->syscalls, i);
+    smvm_syscall new_syscall = {
+        .id = syscall->id,
+        .name = malloc((strlen(syscall->name) + 1) * sizeof(char)),
+        .function = syscall->function};
+    strcpy(new_syscall.name, syscall->name);
+    listmv_push(&as->syscalls, &new_syscall);
+  }
 }
 
 u8 asmv_parse_register(asmv *as) {
@@ -135,7 +146,7 @@ asmv_inst asmv_lex_inst(asmv *as) {
   current = asmv_current(as);
   // ignore comments
   if (current == ';' || current == '#')
-    while (asmv_next(as) != '\n');
+    while (asmv_next(as) != '\n' && asmv_current(as) != '\0');
   while (isspace(asmv_current(as))) asmv_skip(as);
   current = asmv_current(as);
   if (current == '\0') return ((asmv_inst){.eof = true});
@@ -375,7 +386,7 @@ void asmv_assemble(asmv *as) {
     const u8 num_ops = instruction_table[inst.code].num_ops;
 
     if (num_ops == 0) {
-      listmv_push(&as->output.bytecode, &inst.code);
+      listmv_push(&as->bytecode, &inst.code);
       continue;
     }
 
@@ -399,17 +410,53 @@ void asmv_assemble(asmv *as) {
 
       // set the info and mode bits
       primary_bytes[i] |= op.mode << 6;
-      if (op.data.type == asmv_str_type) continue;
 
-      // set the register/data bits
-      u8 byte = i == 2 ? 3 : 2;
-      u8 offset = i == 1 ? 3 : 0;
+      if (op.data.type == asmv_str_type) {
+        if (inst.code == op_scall) {
+          const char *syscall_name = (char *)op.data.str.data;
+          bool found = false;
+
+          for (u64 j = 0; j < as->syscalls.len; j++) {
+            smvm_syscall *syscall = (smvm_syscall *)listmv_at(&as->syscalls, j);
+            if (strcmp(syscall->name, syscall_name) == 0) {
+              // use the index instead of the name
+              op.mode = mode_immediate;
+              op.data.type = asmv_unum_type;
+              op.data.unum = j;
+              op.width = smvm_reg64;
+              op.size = smvm_reg64;
+              inst.operands[i] = op;
+              listmv_free(&op.data.str);
+              found = true;
+              break;
+            }
+          }
+
+          if (!found) {
+            smvm_syscall new_syscall = {
+                .id = as->syscalls.len,
+                .function = NULL,
+                .name = malloc(strlen(syscall_name) + 1)};
+            strcpy(new_syscall.name, syscall_name);
+            listmv_push(&as->syscalls, &new_syscall);
+
+            op.mode = mode_immediate;
+            op.data.type = asmv_unum_type;
+            op.data.unum = new_syscall.id;
+            op.width = smvm_reg64;
+            op.size = smvm_reg64;
+            inst.operands[i] = op;
+            listmv_free(&op.data.str);
+          }
+        }
+        continue;
+      }
 
       if (op.offset) immediate_bytes[immediate_size++] = op.offset;
       if (op.mode == mode_register || op.mode == mode_indirect) {
-        primary_bytes[byte] |= op.data.reg << offset;
+        primary_bytes[i == 2 ? 3 : 2] |= op.data.reg << (i == 1 ? 3 : 0);
       } else if (op.mode == mode_direct || op.mode == mode_immediate) {
-        primary_bytes[byte] |= op.size << offset;
+        primary_bytes[i == 2 ? 3 : 2] |= op.size << (i == 1 ? 3 : 0);
         u8 data_size = 1 << op.size;  // ranges from 1 to 8
         immediate_size += data_size;
         for (int n = 0; n < data_size; n++)
@@ -418,14 +465,12 @@ void asmv_assemble(asmv *as) {
       }
     }
 
-    listmv_push_array(&as->output.bytecode, primary_bytes,
-                      num_ops == 3 ? 4 : 3);
-    listmv_push_array(&as->output.bytecode, immediate_bytes, immediate_size);
+    listmv_push_array(&as->bytecode, primary_bytes, num_ops == 3 ? 4 : 3);
+    listmv_push_array(&as->bytecode, immediate_bytes, immediate_size);
     for (int i = 0; i < num_ops; i++) {
       asmv_operand op = inst.operands[i];
       if (op.data.type != asmv_str_type) continue;
-      listmv_push_array(&as->output.bytecode, op.data.str.data,
-                        op.data.str.len);
+      listmv_push_array(&as->bytecode, op.data.str.data, op.data.str.len);
     }
   }
 
@@ -450,20 +495,20 @@ void asmv_assemble(asmv *as) {
   }
 
   // append the header now
-  as->output.header = (smvm_header){
+  as->header = (smvm_header){
       .version = smvm_version,
       .header_flags = 0,          // TODO
       .checksum = 0,              // TODO
       .global_variables_len = 0,  // TODO
-      .code_len = as->output.bytecode.len,
+      .code_len = as->bytecode.len,
   };
 }
 
 void asmv_free(asmv *as) {
   listmv_free(&as->label_refs);
   listmv_free(&as->label_addrs);
-  // bytecode, instruction is now owned by a vm
-  // so no need to free it
+  // don't free syscalls, bytecode, or instructions
+  // ownership is transferred to VM
 }
 
 char asmv_current(asmv *a) { return a->code[a->index]; }

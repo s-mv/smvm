@@ -29,7 +29,7 @@ mov   @100>16 32  # first 16 bits @100 <- 32
 ```
 
 ## Arithmetic instructions
-These are pretty much selt explanatory.
+These are pretty much self explanatory.
 ### 1. Addition instructions
 ```
 add   x y z     # x = y + z

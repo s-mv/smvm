@@ -160,36 +160,37 @@ void pop_fn(smvm *vm) {
   mov_mem((u8 *)vm->cache.pointers[0], data, vm->cache.widths[0]);
 }
 void extern_fn(smvm *vm) {
-  char *name = (char *)listmv_at(&vm->bytecode, vm->registers[reg_ip]);
-  u64 len = strlen(name) + 1;
+  char *name = (char *)vm->cache.pointers[0];
 
-  for (u64 i = 0; i < vm->syscalls.len; i++) {
-    smvm_syscall *syscall = (smvm_syscall *)listmv_at(&vm->syscalls, i);
-    if (strcmp(syscall->name, name) == 0) { return; }
+  u64 index = smvm_find_syscall_index(vm, name);
+
+  if (index == (u64)-1) {
+    smvm_syscall syscall = {
+        .id = vm->syscalls.len,
+        .name = malloc((strlen(name) + 1) * sizeof(char)),
+        .function = NULL,
+    };
+    strcpy(syscall.name, name);
+    listmv_push(&vm->syscalls, &syscall);
+
+    vm->registers[reg_a] = syscall.id;
+  } else {
+    vm->registers[reg_a] = index;
   }
-
-  smvm_syscall syscall = {
-      .id = vm->syscalls.len,
-      .name = malloc(len * sizeof(char)),
-      .function = NULL,
-  };
-  strcpy(syscall.name, name);
-
-  listmv_push(&vm->syscalls, &syscall);
 }
 void scall_fn(smvm *vm) {
-  char *name = (char *)listmv_at(&vm->bytecode, vm->registers[reg_ip]);
-  u64 len = strlen(name) + 1;
+  u64 index = *vm->cache.pointers[0];
 
-  for (u64 i = 0; i < vm->syscalls.len; i++) {
-    smvm_syscall *syscall = (smvm_syscall *)listmv_at(&vm->syscalls, i);
-    if (strcmp(syscall->name, name) == 0) {
-      ((void (*)(smvm *))syscall->function)(vm);
+  if (index < vm->syscalls.len) {
+    smvm_syscall *syscall = (smvm_syscall *)listmv_at(&vm->syscalls, index);
+    if (syscall->function != NULL) {
+      syscall->function(vm);
       return;
     }
-  }
+    fprintf(stderr, "Error: Syscall '%s' (index %ld) has no implementation\n",
+            syscall->name, index);
+  } else fprintf(stderr, "Error: Syscall index %ld is out of bounds\n", index);
 
-  fprintf(stderr, "Error: Syscall '%s' not found\n", name);
   smvm_set_flag(vm, flag_t);
 }
 void getu_fn(smvm *vm) {
@@ -200,17 +201,21 @@ void getu_fn(smvm *vm) {
 void puti_fn(smvm *vm) {
   i64 data = parse_signed(*vm->cache.pointers[0], vm->cache.widths[0]);
   printf("%li\n", data);
+  fflush(stdout);
 }
 void putu_fn(smvm *vm) {
   u64 data = 0;
   mov_mem((u8 *)&data, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
   printf("%lu\n", data);
+  fflush(stdout);
 }
 void putf_fn(smvm *vm) {
   f64 data = 0;
   mov_mem((u8 *)&data, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
   printf("%lf\n", data);
+  fflush(stdout);
 }
 void puts_fn(smvm *vm) {
   printf("%s", (char *)vm->cache.instruction->operands[0].data.str.data);
+  fflush(stdout);
 }

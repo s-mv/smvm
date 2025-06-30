@@ -110,9 +110,7 @@ bool checksum32bit_valid(listmv(u8) memory, listmv(u8) bytecode, u32 checksum) {
 
 /* inline functions */
 
-void mov_mem(u8 *dest, u8 *src, u64 size) {
-  while (size--) *dest++ = *src++;
-}
+void mov_mem(u8 *dest, u8 *src, u64 size) { memcpy(dest, src, size); }
 
 void mov_mem_reverse(u8 *dest, u8 *src, u64 size) {
   dest += size - 1;

@@ -1,6 +1,8 @@
 # smvm - the smv virtual machine
 ~A register based bytecode virtual machine implementation by smv.
 
+![(this is a screenshot)](./screenshots/examples-star.png)
+
 Lightweight and fast, written under 1400 lines of code.
 
 Currently the docs are in making (or being "transported" from past

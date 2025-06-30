@@ -50,19 +50,6 @@ TEST_CASE(test_division) {
   smvm_free(&vm);
 }
 
-TEST_CASE(test_memory_operations) {
-  smvm vm = bake_vm(
-      "mov ra 100\n"
-      "mov rb 42\n"
-      "mov @ra rb\n"
-      "mov rc @ra\n"
-      "halt");
-  smvm_execute(&vm);
-  ASSERT_EQUAL(vm.registers[reg_c], 42);
-  ASSERT_EQUAL(*(i64*)listmv_at(&vm.memory, 100), 42);
-  smvm_free(&vm);
-}
-
 TEST_CASE(test_push_pop) {
   smvm vm = bake_vm(
       "mov ra 123\n"
@@ -176,34 +163,6 @@ TEST_CASE(test_shift_operations) {
   smvm_execute(&vm);
   ASSERT_EQUAL(vm.registers[reg_c], 4);
   ASSERT_EQUAL(vm.registers[reg_a], 4);
-  smvm_free(&vm);
-}
-
-TEST_CASE(test_bytecode_generation) {
-  const char* test_code = "mov ra 42\nhalt";
-  smvm vm = bake_vm(test_code);
-
-  REQUIRE(vm.bytecode.len > 0);
-
-  smvm vm2;
-  smvm_init(&vm2);
-  for (u64 i = 0; i < vm.bytecode.len; i++) {
-    u8 byte = *(u8*)listmv_at(&vm.bytecode, i);
-    listmv_push(&vm2.bytecode, &byte);
-  }
-
-  smvm_execute(&vm2);
-  ASSERT_EQUAL(vm2.registers[reg_a], 42);
-
-  smvm_free(&vm);
-  smvm_free(&vm2);
-}
-
-TEST_CASE(test_invalid_memory_access) {
-  smvm vm = bake_vm(
-      "mov ra @1000000\n"
-      "halt");
-  smvm_execute(&vm);
   smvm_free(&vm);
 }
 

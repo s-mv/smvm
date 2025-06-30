@@ -18,6 +18,16 @@ typedef struct smvm_header {
   u64 code_len;
 } smvm_header;
 
+// Forward declarations
+struct smvm;
+typedef void (*smvm_syscall_func)(struct smvm *);
+
+typedef struct smvm_syscall {
+  u64 id;
+  char *name;
+  smvm_syscall_func function;
+} smvm_syscall;
+
 typedef struct smvm {
   listmv(u8) bytecode;
   listmv(u8) stringpool;
@@ -39,12 +49,6 @@ typedef struct smvm {
     u8 offset;
   } cache;
 } smvm;
-
-typedef struct smvm_syscall {
-  u64 id;
-  char *name;
-  void *function;
-} smvm_syscall;
 
 typedef enum smvm_opcode : u8 {
   op_halt = 0b000000,
@@ -141,11 +145,14 @@ typedef enum smvm_mode {
 } smvm_mode;
 
 void smvm_init(smvm *vm);
-void smvm_link_call(smvm *vm, void (*fn)(smvm *), const char *name);
+u64 smvm_link_syscall(smvm *vm, smvm_syscall_func fn, const char *name);
 void smvm_assemble(smvm *vm, char *code);
 void smvm_execute(smvm *vm);
 void smvm_disassemble(smvm *vm, char *code);
 void smvm_free(smvm *vm);
+
+// New helper function to find syscall index by name
+u64 smvm_find_syscall_index(smvm *vm, const char *name);
 
 /* some helpers */
 void smvm_push(smvm *vm, u8 *value, u64 width);
