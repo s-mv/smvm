@@ -8,51 +8,29 @@
 #include "util.h"
 
 instruction_info instruction_table[instruction_table_len] = {
-    [op_halt] = {"halt", 4, 0, trap_fn},
-    [op_mov] = {"mov", 3, 2, mov_fn},
-    [op_movu] = {"movu", 4, 2, movu_fn},
-    [op_movf] = {"movf", 4, 2, movf_fn},
-    [op_swap] = {"swap", 4, 2, swap_fn},
-    [op_lea] = {"lea", 3, 2, lea_fn},
-    [op_addu] = {"addu", 4, 3, addu_fn},
-    [op_addf] = {"addf", 4, 3, addf_fn},
-    [op_add] = {"add", 3, 3, add_fn},
-    [op_subu] = {"subu", 4, 3, subu_fn},
-    [op_subf] = {"subf", 4, 3, subf_fn},
-    [op_sub] = {"sub", 3, 3, sub_fn},
-    [op_mulu] = {"mulu", 4, 3, mulu_fn},
-    [op_mulf] = {"mulf", 4, 3, mulf_fn},
-    [op_mul] = {"mul", 3, 3, mul_fn},
-    [op_divu] = {"divu", 4, 3, divu_fn},
-    [op_divf] = {"divf", 4, 3, divf_fn},
-    [op_div] = {"div", 3, 3, div_fn},
-    [op_inc] = {"inc", 3, 1, inc_fn},
-    [op_dec] = {"dec", 3, 1, dec_fn},
-    [op_and] = {"and", 3, 3, and_fn},
-    [op_or] = {"or", 2, 3, or_fn},
-    [op_xor] = {"xor", 3, 3, xor_fn},
-    [op_shli] = {"shli", 4, 3, shli_fn},
-    [op_shl] = {"shl", 3, 3, shl_fn},
-    [op_shri] = {"shri", 4, 3, shri_fn},
-    [op_shr] = {"shr", 3, 3, shr_fn},
-    [op_slc] = {"slc", 3, 3, slc_fn},
-    [op_src] = {"src", 3, 3, src_fn},
-    [op_jmp] = {"jmp", 3, 1, jmp_fn},
-    [op_je] = {"je", 2, 3, je_fn},
-    [op_jne] = {"jne", 3, 3, jne_fn},
-    [op_jl] = {"jl", 2, 3, jl_fn},
-    [op_loop] = {"loop", 4, 2, loop_fn},
-    [op_call] = {"call", 4, 1, call_fn},
-    [op_ret] = {"ret", 3, 0, ret_fn},
-    [op_push] = {"push", 4, 1, push_fn},
-    [op_pop] = {"pop", 3, 1, pop_fn},
-    [op_extern] = {"extern", 6, 1, extern_fn},
-    [op_scall] = {"scall", 5, 1, scall_fn},
-    [op_getu] = {"getu", 4, 1, getu_fn},
-    [op_puti] = {"puti", 4, 1, puti_fn},
-    [op_putu] = {"putu", 4, 1, putu_fn},
-    [op_putf] = {"putf", 4, 1, putf_fn},
-    [op_puts] = {"puts", 4, 1, puts_fn}};
+    [op_halt] = {"halt", 4, 0},     [op_mov] = {"mov", 3, 2},
+    [op_movu] = {"movu", 4, 2},     [op_movf] = {"movf", 4, 2},
+    [op_swap] = {"swap", 4, 2},     [op_lea] = {"lea", 3, 2},
+    [op_addu] = {"addu", 4, 3},     [op_addf] = {"addf", 4, 3},
+    [op_add] = {"add", 3, 3},       [op_subu] = {"subu", 4, 3},
+    [op_subf] = {"subf", 4, 3},     [op_sub] = {"sub", 3, 3},
+    [op_mulu] = {"mulu", 4, 3},     [op_mulf] = {"mulf", 4, 3},
+    [op_mul] = {"mul", 3, 3},       [op_divu] = {"divu", 4, 3},
+    [op_divf] = {"divf", 4, 3},     [op_div] = {"div", 3, 3},
+    [op_inc] = {"inc", 3, 1},       [op_dec] = {"dec", 3, 1},
+    [op_and] = {"and", 3, 3},       [op_or] = {"or", 2, 3},
+    [op_xor] = {"xor", 3, 3},       [op_shli] = {"shli", 4, 3},
+    [op_shl] = {"shl", 3, 3},       [op_shri] = {"shri", 4, 3},
+    [op_shr] = {"shr", 3, 3},       [op_slc] = {"slc", 3, 3},
+    [op_src] = {"src", 3, 3},       [op_jmp] = {"jmp", 3, 1},
+    [op_je] = {"je", 2, 3},         [op_jne] = {"jne", 3, 3},
+    [op_jl] = {"jl", 2, 3},         [op_loop] = {"loop", 4, 2},
+    [op_call] = {"call", 4, 1},     [op_ret] = {"ret", 3, 0},
+    [op_push] = {"push", 4, 1},     [op_pop] = {"pop", 3, 1},
+    [op_extern] = {"extern", 6, 1}, [op_scall] = {"scall", 5, 1},
+    [op_getu] = {"getu", 4, 1},     [op_puti] = {"puti", 4, 1},
+    [op_putu] = {"putu", 4, 1},     [op_putf] = {"putf", 4, 1},
+    [op_puts] = {"puts", 4, 1}};
 
 void smvm_init(smvm *vm) {
   *vm = (smvm){0};
@@ -86,8 +64,22 @@ void smvm_assemble(smvm *vm, char *code) {
 
 // TODO error return type
 void smvm_execute(smvm *vm) {
+  static void *instruction_labels[] = {
+      &&trap_label, &&mov_label,  &&movu_label, &&movf_label,   &&swap_label,
+      &&lea_label,  &&add_label,  &&addu_label, &&addf_label,   &&sub_label,
+      &&subu_label, &&subf_label, &&mul_label,  &&mulu_label,   &&mulf_label,
+      &&div_label,  &&divu_label, &&divf_label, &&inc_label,    &&dec_label,
+      &&and_label,  &&or_label,   &&xor_label,  &&shl_label,    &&shr_label,
+      &&shli_label, &&shri_label, &&slc_label,  &&src_label,    &&jmp_label,
+      &&je_label,   &&jne_label,  &&jl_label,   &&loop_label,   &&call_label,
+      &&ret_label,  &&push_label, &&pop_label,  &&extern_label, &&scall_label,
+      &&getu_label, &&puti_label, &&putu_label, &&putf_label,   &&puts_label,
+  };
+
   for (vm->registers[reg_ip] = 0; vm->registers[reg_ip] < vm->instructions.len;
        vm->registers[reg_ip]++) {
+    if (smvm_get_flag(vm, flag_t)) break;  // TODO, so much
+
     asmv_inst *instruction =
         (asmv_inst *)listmv_at(&vm->instructions, vm->registers[reg_ip]);
     vm->cache.instruction = instruction;
@@ -134,9 +126,312 @@ void smvm_execute(smvm *vm) {
     }
 
     vm->cache.offset = code_width;
-    instruction_table[code].fn(vm);
 
-    if (smvm_get_flag(vm, flag_t)) break;  // TODO, so much
+    u64 temp, result_u64;
+    u8 width;
+    i64 result_i64, left, right;
+    f64 result_f64;
+    u8 *data;
+    char *name;
+
+    goto *instruction_labels[code];
+
+  trap_label:
+    smvm_set_flag(vm, flag_t);
+    continue;
+
+  mov_label:
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)vm->cache.pointers[1],
+            vm->cache.widths[0]);
+    continue;
+
+  movu_label:
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)vm->cache.pointers[1],
+            vm->cache.widths[0]);
+    continue;
+
+  movf_label:
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)vm->cache.pointers[1],
+            vm->cache.widths[0]);
+    continue;
+
+  swap_label:
+    width = vm->cache.widths[0] > vm->cache.widths[1] ? vm->cache.widths[0]
+                                                      : vm->cache.widths[1];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)temp, width);
+    mov_mem((u8 *)temp, (u8 *)vm->cache.pointers[1], width);
+    continue;
+
+  lea_label:
+    continue;  // TODO
+
+  add_label:
+    result_i64 = *vm->cache.pointers[1] + *vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_i64,
+            vm->cache.widths[0]);
+    continue;
+
+  addu_label:
+    result_u64 = *(u64 *)vm->cache.pointers[1] + *(u64 *)vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_u64,
+            vm->cache.widths[0]);
+    continue;
+
+  addf_label:
+    result_f64 = *(f64 *)vm->cache.pointers[1] + *(f64 *)vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_f64,
+            vm->cache.widths[0]);
+    continue;
+
+  sub_label:
+    result_i64 = *vm->cache.pointers[1] - *vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_i64,
+            vm->cache.widths[0]);
+    continue;
+
+  subu_label:
+    result_u64 = *(u64 *)vm->cache.pointers[1] - *(u64 *)vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_u64,
+            vm->cache.widths[0]);
+    continue;
+
+  subf_label:
+    result_f64 = *(f64 *)vm->cache.pointers[1] - *(f64 *)vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_f64,
+            vm->cache.widths[0]);
+    continue;
+
+  mul_label:
+    result_i64 = *vm->cache.pointers[1] * *vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_i64,
+            vm->cache.widths[0]);
+    continue;
+
+  mulu_label:
+    result_u64 = *(u64 *)vm->cache.pointers[1] * *(u64 *)vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_u64,
+            vm->cache.widths[0]);
+    continue;
+
+  mulf_label:
+    result_f64 = *(f64 *)vm->cache.pointers[1] * *(f64 *)vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_f64,
+            vm->cache.widths[0]);
+    continue;
+
+  div_label:
+    result_i64 = *vm->cache.pointers[1] / *vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_i64,
+            vm->cache.widths[0]);
+    continue;
+
+  divu_label:
+    result_u64 = *(u64 *)vm->cache.pointers[1] / *(u64 *)vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_u64,
+            vm->cache.widths[0]);
+    continue;
+
+  divf_label:
+    result_f64 = *(f64 *)vm->cache.pointers[1] + *(f64 *)vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_f64,
+            vm->cache.widths[0]);
+    continue;
+
+  inc_label:
+    result_u64 = *vm->cache.pointers[0] + 1;
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_u64,
+            vm->cache.widths[0]);
+    continue;
+
+  dec_label:
+    result_u64 = *vm->cache.pointers[0] - 1;
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_u64,
+            vm->cache.widths[0]);
+    continue;
+
+  and_label:
+    result_u64 = *vm->cache.pointers[1] & *vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_u64,
+            vm->cache.widths[0]);
+    continue;
+
+  or_label:
+    result_u64 = *vm->cache.pointers[1] | *vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_u64,
+            vm->cache.widths[0]);
+    continue;
+
+  xor_label:
+    result_u64 = *vm->cache.pointers[1] ^ *vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_u64,
+            vm->cache.widths[0]);
+    continue;
+
+  shl_label:
+    result_u64 = *vm->cache.pointers[1] << *vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_u64,
+            vm->cache.widths[0]);
+    continue;
+
+  shr_label:
+    result_u64 = *vm->cache.pointers[1] >> *vm->cache.pointers[2];
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&result_u64,
+            vm->cache.widths[0]);
+    continue;
+
+  shli_label:
+    continue;
+
+  shri_label:
+    continue;
+
+  slc_label:
+    continue;
+
+  src_label:
+    continue;
+
+  jmp_label:
+    vm->registers[reg_bp] = 0;
+    mov_mem((u8 *)&vm->registers[reg_bp], (u8 *)vm->cache.pointers[2],
+            vm->cache.widths[2]);
+    vm->registers[reg_ip] = vm->cache.instruction->label_index - 1;
+    continue;
+
+  je_label:
+    if (*vm->cache.pointers[0] != *vm->cache.pointers[1]) continue;
+    // else
+    vm->registers[reg_bp] = 0;
+    mov_mem((u8 *)&vm->registers[reg_bp], (u8 *)vm->cache.pointers[2],
+            vm->cache.widths[2]);
+    vm->registers[reg_ip] = vm->cache.instruction->label_index - 1;
+    continue;
+
+  jne_label:
+    left = 0, right = 0;
+    mov_mem((u8 *)&left, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
+    mov_mem((u8 *)&right, (u8 *)vm->cache.pointers[1], vm->cache.widths[1]);
+    if (left == right) continue;
+    // else
+    vm->registers[reg_bp] = 0;
+    mov_mem((u8 *)&vm->registers[reg_bp], (u8 *)vm->cache.pointers[2],
+            vm->cache.widths[2]);
+    vm->registers[reg_ip] = vm->cache.instruction->label_index - 1;
+    continue;
+
+  jl_label:
+    left = 0, right = 0;
+    mov_mem((u8 *)&left, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
+    mov_mem((u8 *)&right, (u8 *)vm->cache.pointers[1], vm->cache.widths[1]);
+    if (left < right) continue;
+    // else
+    vm->registers[reg_bp] = 0;
+    mov_mem((u8 *)&vm->registers[reg_bp], (u8 *)vm->cache.pointers[2],
+            vm->cache.widths[2]);
+    vm->registers[reg_ip] = vm->cache.instruction->label_index - 1;
+    continue;
+
+  loop_label:
+    smvm_push(vm, (u8 *)&vm->registers[reg_ip], 8);
+    continue;
+
+  call_label:
+    result_u64 = vm->registers[reg_ip];  // address
+    smvm_push(vm, (u8 *)&result_u64, 8);
+    vm->registers[reg_bp] = 0;
+    mov_mem((u8 *)&vm->registers[reg_bp], (u8 *)vm->cache.pointers[0],
+            vm->cache.widths[0]);
+    vm->registers[reg_ip] = vm->cache.instruction->label_index - 1;
+    continue;
+
+  ret_label:
+    vm->registers[reg_ip] = *(i64 *)smvm_pop(vm, 8);
+    asmv_inst *inst =
+        (asmv_inst *)listmv_at(&vm->instructions, vm->registers[reg_ip]);
+    vm->registers[reg_bp] = inst->index;
+    continue;
+
+  push_label:
+    smvm_push(vm, (u8 *)vm->cache.pointers[0], vm->cache.widths[0]);
+    continue;
+
+  pop_label:
+    data = smvm_pop(vm, vm->cache.widths[0]);
+    mov_mem((u8 *)vm->cache.pointers[0], data, vm->cache.widths[0]);
+    continue;
+
+  extern_label:
+    name = (char *)vm->cache.pointers[0];
+
+    u64 index = smvm_find_syscall_index(vm, name);
+
+    if (index == (u64)-1) {
+      smvm_syscall syscall = {
+          .id = vm->syscalls.len,
+          .name = malloc((strlen(name) + 1) * sizeof(char)),
+          .function = NULL,
+      };
+      strcpy(syscall.name, name);
+      listmv_push(&vm->syscalls, &syscall);
+
+      vm->registers[reg_a] = syscall.id;
+    } else {
+      vm->registers[reg_a] = index;
+    }
+    continue;
+
+  scall_label:
+    temp = *vm->cache.pointers[0];  // index
+
+    if (temp < vm->syscalls.len) {
+      smvm_syscall *syscall = (smvm_syscall *)listmv_at(&vm->syscalls, temp);
+      if (syscall->function != NULL) {
+        syscall->function(vm);
+        return;
+        continue;
+
+        fprintf(stderr,
+                "Error: Syscall '%s' (index %ld) has no implementation\n",
+                syscall->name, temp);
+      } else
+        fprintf(stderr, "Error: Syscall index %ld is out of bounds\n", temp);
+
+      smvm_set_flag(vm, flag_t);
+      continue;
+    }
+    continue;
+
+  getu_label:
+    scanf("%lu", &temp);
+    mov_mem((u8 *)vm->cache.pointers[0], (u8 *)&temp, vm->cache.widths[0]);
+    continue;
+
+  puti_label:
+    result_i64 = parse_signed(*vm->cache.pointers[0], vm->cache.widths[0]);
+    printf("%li\n", result_i64);
+    fflush(stdout);
+    continue;
+
+  putu_label:
+    result_u64 = 0;  // data
+    mov_mem((u8 *)&result_u64, (u8 *)vm->cache.pointers[0],
+            vm->cache.widths[0]);
+    printf("%lu\n", result_u64);
+    fflush(stdout);
+    continue;
+
+  putf_label:
+    result_f64 = 0;
+    mov_mem((u8 *)&result_f64, (u8 *)vm->cache.pointers[0],
+            vm->cache.widths[0]);
+    printf("%lf\n", result_f64);
+    fflush(stdout);
+    continue;
+
+  puts_label:
+    printf("%s", (char *)vm->cache.instruction->operands[0].data.str.data);
+    fflush(stdout);
+    continue;
   }
 }
 
@@ -212,3 +507,4 @@ bool is_little_endian() {
   uint32_t num = 1;
   return *(uint8_t *)&num == 1;
 }
+

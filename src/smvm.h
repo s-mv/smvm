@@ -219,15 +219,14 @@ void putu_fn(smvm *vm);
 void putf_fn(smvm *vm);
 void puts_fn(smvm *vm);
 
-// TODO, implement hashing or something
 typedef struct instruction_info {
   char *name;
   u8 str_size : 4;
   u8 num_ops : 4;
-  void (*fn)(smvm *);
 } instruction_info;
 
 #define instruction_table_len (45)
 extern instruction_info instruction_table[instruction_table_len];
 
 #endif
+

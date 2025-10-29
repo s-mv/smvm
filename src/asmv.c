@@ -518,3 +518,4 @@ char asmv_prev(asmv *a) { return a->code[a->index - 1]; }
 char asmv_prev2(asmv *a) { return a->code[a->index - 2]; }
 char asmv_next(asmv *a) { return a->code[++a->index]; }
 void asmv_skip(asmv *a) { ++a->index; }
+

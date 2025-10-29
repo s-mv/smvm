@@ -1,6 +1,6 @@
 CC ?= clang
 TITLE = smvm
-OBJECTS = out/util.o out/smvm.o out/asmv.o out/dsmv.o out/functions.o
+OBJECTS = out/util.o out/smvm.o out/asmv.o out/dsmv.o
 INCLUDE = -I ./src
 CFLAGS = -std=c99 -fshort-enums -fPIC -g
 PREFIX ?= /usr/local

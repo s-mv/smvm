@@ -1,0 +1,7 @@
+; push 100_000_000 values to the stack
+mov ra 100_000_000
+.loop
+  push ra
+  dec ra
+jne ra 0 .loop
+
